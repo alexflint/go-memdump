@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"reflect"
 	"sort"
 	"unsafe"
@@ -24,10 +23,17 @@ func asBytes(v reflect.Value) []byte {
 	return *(*[]byte)(unsafe.Pointer(&hdr))
 }
 
+func isNil(v reflect.Value) bool {
+	if v.Kind() == reflect.String {
+		hdr := (*reflect.StringHeader)(unsafe.Pointer(v.Addr().Pointer()))
+		return hdr.Data == 0
+	}
+	return v.IsNil()
+}
+
 func readPointer(v reflect.Value) uintptr {
 	if v.Kind() == reflect.String {
 		hdr := (*reflect.StringHeader)(unsafe.Pointer(v.Addr().Pointer()))
-		log.Printf("    string header has len=%d, data=%d", hdr.Len, hdr.Data)
 		return hdr.Data
 	}
 	return v.Pointer()
@@ -36,6 +42,7 @@ func readPointer(v reflect.Value) uintptr {
 type block struct {
 	src  reflect.Value
 	dest uintptr
+	size uintptr
 }
 
 type pointer struct {
@@ -83,6 +90,26 @@ func (e *Encoder) alloc(size uintptr) uintptr {
 	return cur
 }
 
+func arrayFromString(strval reflect.Value) reflect.Value {
+	if strval.Kind() != reflect.String {
+		panic(fmt.Sprintf("expected string type but got %s", strval.Type()))
+	}
+
+	hdr := (*reflect.StringHeader)(unsafe.Pointer(strval.Addr().Pointer()))
+	typ := reflect.ArrayOf(hdr.Len, byteType)
+	return reflect.NewAt(typ, unsafe.Pointer(hdr.Data)).Elem()
+}
+
+func arrayFromSlice(sliceval reflect.Value) reflect.Value {
+	if sliceval.Kind() != reflect.Slice {
+		panic(fmt.Sprintf("expected string type but got %s", sliceval.Type()))
+	}
+
+	hdr := (*reflect.SliceHeader)(unsafe.Pointer(sliceval.Addr().Pointer()))
+	typ := reflect.ArrayOf(hdr.Len, sliceval.Type().Elem())
+	return reflect.NewAt(typ, unsafe.Pointer(hdr.Data)).Elem()
+}
+
 func (e *Encoder) Encode(ptr interface{}) error {
 	ptrval := reflect.ValueOf(ptr)
 	objval := ptrval.Elem()
@@ -92,19 +119,24 @@ func (e *Encoder) Encode(ptr interface{}) error {
 	queue := []block{block{
 		src:  objval,
 		dest: e.alloc(objval.Type().Size()),
+		size: objval.Type().Size(),
 	}}
 
 	for len(queue) > 0 {
 		cur := queue[0]
 		queue = queue[1:]
 
-		if cur.dest != uintptr(e.w.offset) {
-			panic(fmt.Sprintf("block.dest=%d but writer is at %d", cur.dest, e.w.offset))
-		}
-
 		blockaddr := cur.src.Addr().Pointer()
 		blockbytes := asBytes(cur.src)
 		log.Printf("at %v (%d bytes)", cur.src.Type(), len(blockbytes))
+		if len(blockbytes) != int(cur.size) {
+			panic(fmt.Sprintf("expected %v to be %d bytes but turned out to be %d bytes",
+				cur.src.Type(), cur.size, len(blockbytes)))
+		}
+
+		if cur.dest != uintptr(e.w.offset) {
+			panic(fmt.Sprintf("block.dest=%d but writer is at %d", cur.dest, e.w.offset))
+		}
 
 		pointers := findPointersInType(cur.src.Type())
 		log.Printf("found %d pointers", len(pointers))
@@ -120,41 +152,50 @@ func (e *Encoder) Encode(ptr interface{}) error {
 
 			log.Printf("  translating %s at %d", ptr.typ, int(cur.dest+ptr.offset))
 
-			e.ptrLocs = append(e.ptrLocs, int(cur.dest+ptr.offset))
-
 			ptraddr := blockaddr + ptr.offset
 			ptrdata := unsafe.Pointer(ptraddr)
 			ptrval := reflect.NewAt(ptr.typ, ptrdata).Elem()
 
-			if readPointer(ptrval) == 0 {
-				break
-			}
+			var dest uintptr
+			if isNil(ptrval) {
+				log.Println("    pointer is nil")
+			} else {
+				e.ptrLocs = append(e.ptrLocs, int(cur.dest+ptr.offset))
 
-			dest, found := cache[readPointer(ptrval)]
-			if !found {
-				switch ptr.typ.Kind() {
-				case reflect.Ptr:
-					dest = e.alloc(ptr.typ.Size())
-					queue = append(queue, block{
-						src:  ptrval.Elem(),
-						dest: dest,
-					})
-				case reflect.Slice:
-					dest = e.alloc(uintptr(ptrval.Len()) * ptr.typ.Elem().Size())
-					queue = append(queue, block{
-						src:  reflect.NewAt(reflect.ArrayOf(ptrval.Len(), ptr.typ.Elem()), ptrdata).Elem(),
-						dest: dest,
-					})
-				case reflect.String:
-					dest = e.alloc(uintptr(ptrval.Len()))
-					arr := reflect.NewAt(reflect.ArrayOf(ptrval.Len(), byteType), ptrdata).Elem()
-					log.Printf("   created %s with addr=%d, data[0]=%v", arr.Type(), arr.Addr().Pointer(), arr.Index(0))
-					queue = append(queue, block{
-						src:  arr,
-						dest: dest,
-					})
+				var found bool
+				dest, found = cache[readPointer(ptrval)]
+				if !found {
+					switch ptr.typ.Kind() {
+					case reflect.Ptr:
+						size := ptr.typ.Elem().Size()
+						dest = e.alloc(size)
+						queue = append(queue, block{
+							src:  ptrval.Elem(),
+							dest: dest,
+							size: size,
+						})
+					case reflect.Slice:
+						size := uintptr(ptrval.Len()) * ptr.typ.Elem().Size()
+						dest = e.alloc(size)
+						arr := arrayFromSlice(ptrval)
+						queue = append(queue, block{
+							src:  arr,
+							dest: dest,
+							size: size,
+						})
+					case reflect.String:
+						size := uintptr(ptrval.Len())
+						dest = e.alloc(size)
+						arr := arrayFromString(ptrval)
+						log.Printf("   created %s with addr=%d, data[0]=%v", arr.Type(), arr.Addr().Pointer(), arr.Index(0))
+						queue = append(queue, block{
+							src:  arr,
+							dest: dest,
+							size: size,
+						})
+					}
+					cache[readPointer(ptrval)] = dest
 				}
-				cache[readPointer(ptrval)] = dest
 			}
 
 			log.Printf("     value=%d", dest)
@@ -168,19 +209,6 @@ func (e *Encoder) Encode(ptr interface{}) error {
 		e.w.Write(blockbytes[blockpos:])
 	}
 
-	// ptrs := findPointers(ptrval)
-	// sort.Sort(byLoc(ptrs))
-
-	// base := ptrval.Pointer()
-	// offset = base
-	// for _, ptr := range ptrs {
-	// 	diff := ptr.ptrdata - base
-	// 	e.w.Write(objbytes[offset-base : ptr.loc-base])
-	// 	e.w.Write(asBytes(reflect.ValueOf(&diff).Elem()))
-	// 	offset = ptr.loc - base + unsafe.Sizeof(diff)
-	// 	e.fields = append(e.fields, int(ptr.loc-base))
-	// }
-	// e.w.Write(objbytes[offset:])
 	return nil
 }
 
@@ -229,7 +257,7 @@ func Relocate(buf []byte, ptrLocs []int, t reflect.Type) interface{} {
 	for _, loc := range ptrLocs {
 		v := (*uintptr)(unsafe.Pointer(&buf[loc]))
 		orig := *v
-		*v += base
+		*v += base // subtract 1 because 0 means nil, and offset 0 is represented by 1
 		log.Printf("relocating position %d: %d -> %d", loc, orig, *v)
 	}
 	return reflect.NewAt(t, unsafe.Pointer(&buf[0])).Interface()
@@ -241,40 +269,51 @@ func main() {
 	// 	Age:  123,
 	// }
 
+	type U struct {
+		X bool
+		Y *U
+	}
+
 	type T struct {
 		A int
 		B *int
 		C string
 		D *int
+		E []int
+		F *U
 	}
 
 	x := 32
+
+	u := U{false, nil}
+	u.Y = &u
 
 	obj := T{
 		A: 123,
 		B: &x,
 		C: "abcabcabc",
 		D: &x,
+		E: []int{9, 8, 7},
+		F: &U{X: true, Y: &u},
 	}
 
 	var buf bytes.Buffer
 	enc := NewEncoder(&buf)
 	err := enc.Encode(&obj)
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
-	fmt.Printf("Wrote %d bytes:\n", buf.Len())
-	fmt.Println(buf.Bytes())
+	log.Printf("Wrote %d bytes:\n", buf.Len())
+	log.Println(buf.Bytes())
 
-	fmt.Printf("There are %d pointers at:\n", len(enc.ptrLocs))
+	log.Printf("There are %d pointers at:\n", len(enc.ptrLocs))
 	for _, loc := range enc.ptrLocs {
-		fmt.Println(loc)
+		log.Println(loc)
 	}
 
 	newobj := Relocate(buf.Bytes(), enc.ptrLocs, reflect.TypeOf(T{})).(*T)
-	fmt.Println(reflect.ValueOf(newobj).Type())
-	fmt.Println(reflect.ValueOf(newobj).Pointer())
+	log.Println(reflect.ValueOf(newobj).Type())
+	log.Println(reflect.ValueOf(newobj).Pointer())
 	pretty.Println(newobj)
 }
