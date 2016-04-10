@@ -280,13 +280,12 @@ func main() {
 		C string
 		D *int
 		E []int
-		F *U
+		F []*U
 	}
 
 	x := 32
 
-	u := U{false, nil}
-	u.Y = &u
+	u := U{true, nil}
 
 	obj := T{
 		A: 123,
@@ -294,7 +293,7 @@ func main() {
 		C: "abcabcabc",
 		D: &x,
 		E: []int{9, 8, 7},
-		F: &U{X: true, Y: &u},
+		F: []*U{&u, &u},
 	}
 
 	var buf bytes.Buffer
