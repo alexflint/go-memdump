@@ -1,7 +1,6 @@
-package main
+package structbuffer
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -9,10 +8,37 @@ import (
 	"reflect"
 	"sort"
 	"unsafe"
-
-	"github.com/kr/pretty"
 )
 
+// uintptrSize is the size in bytes of uintptr
+const uintptrSize = unsafe.Sizeof(uintptr(0))
+
+// byteType is the reflect.Type of byte
+var (
+	byteType  = reflect.TypeOf(byte(0))
+	typeCache = make(map[reflect.Type]*typeInfo)
+)
+
+// block represents a value to be written to the stream
+type block struct {
+	src  reflect.Value
+	dest uintptr
+	size uintptr
+}
+
+// pointer represents the location of a pointer in a type
+type pointer struct {
+	offset uintptr
+	typ    reflect.Type
+}
+
+// typeInfo represents the location of the pointers in a type
+type typeInfo struct {
+	pointer []pointer
+}
+
+// asBytes gets a byte slice with data pointer set to the address of the
+// assigned value and length set to the sizeof the value.
 func asBytes(v reflect.Value) []byte {
 	size := int(v.Type().Size())
 	hdr := reflect.SliceHeader{
@@ -23,6 +49,9 @@ func asBytes(v reflect.Value) []byte {
 	return *(*[]byte)(unsafe.Pointer(&hdr))
 }
 
+// isNil determines whether the pointer contained within v is nil.
+// This is equivalent to checking x==nil, except for strings, where
+// this method checks the data pointer inside the string header.
 func isNil(v reflect.Value) bool {
 	if v.Kind() == reflect.String {
 		hdr := (*reflect.StringHeader)(unsafe.Pointer(v.Addr().Pointer()))
@@ -39,17 +68,6 @@ func readPointer(v reflect.Value) uintptr {
 	return v.Pointer()
 }
 
-type block struct {
-	src  reflect.Value
-	dest uintptr
-	size uintptr
-}
-
-type pointer struct {
-	offset uintptr
-	typ    reflect.Type
-}
-
 type byOffset []pointer
 
 func (xs byOffset) Len() int           { return len(xs) }
@@ -62,34 +80,35 @@ type countingWriter struct {
 }
 
 func (w *countingWriter) Write(buf []byte) (int, error) {
-	log.Printf("  writing %d bytes at offset %d", len(buf), w.offset)
 	n, err := w.w.Write(buf)
 	w.offset += n
 	return n, err
 }
 
-type Encoder struct {
+// memEncoder writes the in-memory representation of an object, together
+// with all referenced objects.
+type memEncoder struct {
 	w       countingWriter
 	ptrLocs []int
 	next    uintptr
 }
 
-func NewEncoder(w io.Writer) *Encoder {
-	return &Encoder{
+func newMemEncoder(w io.Writer) *memEncoder {
+	return &memEncoder{
 		w: countingWriter{w: w},
 	}
 }
 
-const uintptrSize = unsafe.Sizeof(uintptr(0))
-
-var byteType = reflect.TypeOf(byte(0))
-
-func (e *Encoder) alloc(size uintptr) uintptr {
+// alloc makes room for an object of the specified size, and returns the
+// base offset for that object.
+func (e *memEncoder) alloc(size uintptr) uintptr {
 	cur := e.next
 	e.next += size
 	return cur
 }
 
+// arrayFromString gets a fixed-size array representing the bytes pointed to
+// by a string.
 func arrayFromString(strval reflect.Value) reflect.Value {
 	if strval.Kind() != reflect.String {
 		panic(fmt.Sprintf("expected string type but got %s", strval.Type()))
@@ -100,6 +119,8 @@ func arrayFromString(strval reflect.Value) reflect.Value {
 	return reflect.NewAt(typ, unsafe.Pointer(hdr.Data)).Elem()
 }
 
+// arrayFromSlice gets a fixed-size array representing the data pointed to by
+// a slice
 func arrayFromSlice(sliceval reflect.Value) reflect.Value {
 	if sliceval.Kind() != reflect.Slice {
 		panic(fmt.Sprintf("expected string type but got %s", sliceval.Type()))
@@ -110,7 +131,8 @@ func arrayFromSlice(sliceval reflect.Value) reflect.Value {
 	return reflect.NewAt(typ, unsafe.Pointer(hdr.Data)).Elem()
 }
 
-func (e *Encoder) Encode(ptr interface{}) error {
+// Encode writes the in-memory representation of the object pointed to by ptr.
+func (e *memEncoder) Encode(ptr interface{}) error {
 	ptrval := reflect.ValueOf(ptr)
 	objval := ptrval.Elem()
 
@@ -138,13 +160,11 @@ func (e *Encoder) Encode(ptr interface{}) error {
 			panic(fmt.Sprintf("block.dest=%d but writer is at %d", cur.dest, e.w.offset))
 		}
 
-		pointers := findPointersInType(cur.src.Type())
-		log.Printf("found %d pointers", len(pointers))
-
-		sort.Sort(byOffset(pointers))
+		info := lookupType(cur.src.Type())
+		log.Printf("  found %d pointers", len(info.pointers))
 
 		var blockpos uintptr
-		for _, ptr := range pointers {
+		for _, ptr := range info.pointers {
 			_, err := e.w.Write(blockbytes[blockpos:ptr.offset])
 			if err != nil {
 				return err
@@ -187,7 +207,6 @@ func (e *Encoder) Encode(ptr interface{}) error {
 						size := uintptr(ptrval.Len())
 						dest = e.alloc(size)
 						arr := arrayFromString(ptrval)
-						log.Printf("   created %s with addr=%d, data[0]=%v", arr.Type(), arr.Addr().Pointer(), arr.Index(0))
 						queue = append(queue, block{
 							src:  arr,
 							dest: dest,
@@ -197,8 +216,6 @@ func (e *Encoder) Encode(ptr interface{}) error {
 					cache[readPointer(ptrval)] = dest
 				}
 			}
-
-			log.Printf("     value=%d", dest)
 
 			err = binary.Write(&e.w, binary.LittleEndian, uint64(dest))
 			if err != nil {
@@ -212,11 +229,15 @@ func (e *Encoder) Encode(ptr interface{}) error {
 	return nil
 }
 
-type pointerTypeFinder struct {
+// pointerFinder gets the byte offset of each pointer in an object. It
+// only considers the immediate value of an object (i.e. the bytes that
+// would be copied in a simple assignment). It does not follow pointers
+// to other objects.
+type pointerFinder struct {
 	pointers []pointer
 }
 
-func (f *pointerTypeFinder) visit(t reflect.Type, base uintptr) {
+func (f *pointerFinder) visit(t reflect.Type, base uintptr) {
 	switch t.Kind() {
 	case reflect.Ptr, reflect.String, reflect.Slice:
 		// these four types all store one pointer at offset zero
@@ -231,7 +252,7 @@ func (f *pointerTypeFinder) visit(t reflect.Type, base uintptr) {
 		}
 	case reflect.Array:
 		elemSize := t.Elem().Size()
-		elemPtrs := findPointersInType(t.Elem())
+		elemPtrs := lookupType(t.Elem()).pointers
 		for _, elemPtr := range elemPtrs {
 			for i := 0; i < t.Len(); i++ {
 				f.pointers = append(f.pointers, pointer{
@@ -241,78 +262,37 @@ func (f *pointerTypeFinder) visit(t reflect.Type, base uintptr) {
 			}
 		}
 	case reflect.Map, reflect.Chan, reflect.Interface, reflect.UnsafePointer, reflect.Func:
-		panic(fmt.Sprintf("cannot serialize a %s (got %v)", t.Kind().String(), t))
+		panic(fmt.Sprintf("cannot serialize objects of %v kind (got %v)", t.Kind(), t))
 	}
 }
 
-func findPointersInType(t reflect.Type) []pointer {
-	var f pointerTypeFinder
-	f.visit(t, 0)
-	return f.pointers
+// lookupType gets the type info for t.
+func lookupType(t reflect.Type) *typeInfo {
+	typeCacheLock.Lock()
+	info, found := typeCache[t]
+	typeCacheLock.Unlock()
+
+	if !found {
+		var f pointerFinder
+		f.visit(t, 0)
+		info = &typeInfo{pointers: f.pointers}
+		sort.Sort(byOffset(info.pointers))
+
+		typeCacheLock.Lock()
+		typeCache[t] = info
+		typeCacheLock.Unlock()
+	}
+
+	return info
 }
 
+// Relocate adds the base address to each pointer in the buffer, then reinterprets
+// the buffer as an object of type t.
 func Relocate(buf []byte, ptrLocs []int, t reflect.Type) interface{} {
 	base := uintptr(unsafe.Pointer(&buf[0]))
-	log.Printf("base=%d", base)
 	for _, loc := range ptrLocs {
 		v := (*uintptr)(unsafe.Pointer(&buf[loc]))
-		orig := *v
-		*v += base // subtract 1 because 0 means nil, and offset 0 is represented by 1
-		log.Printf("relocating position %d: %d -> %d", loc, orig, *v)
+		*v += base
 	}
-	return reflect.NewAt(t, unsafe.Pointer(&buf[0])).Interface()
-}
-
-func main() {
-	// p := Person{
-	// 	Name: "alex",
-	// 	Age:  123,
-	// }
-
-	type U struct {
-		X bool
-		Y *U
-	}
-
-	type T struct {
-		A int
-		B *int
-		C string
-		D *int
-		E []int
-		F []*U
-	}
-
-	x := 32
-
-	u := U{true, nil}
-
-	obj := T{
-		A: 123,
-		B: &x,
-		C: "abcabcabc",
-		D: &x,
-		E: []int{9, 8, 7},
-		F: []*U{&u, &u},
-	}
-
-	var buf bytes.Buffer
-	enc := NewEncoder(&buf)
-	err := enc.Encode(&obj)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	log.Printf("Wrote %d bytes:\n", buf.Len())
-	log.Println(buf.Bytes())
-
-	log.Printf("There are %d pointers at:\n", len(enc.ptrLocs))
-	for _, loc := range enc.ptrLocs {
-		log.Println(loc)
-	}
-
-	newobj := Relocate(buf.Bytes(), enc.ptrLocs, reflect.TypeOf(T{})).(*T)
-	log.Println(reflect.ValueOf(newobj).Type())
-	log.Println(reflect.ValueOf(newobj).Pointer())
-	pretty.Println(newobj)
+	return reflect.NewAt(t, unsafe.Pointer(&buf[0])).Elem().Interface()
 }
