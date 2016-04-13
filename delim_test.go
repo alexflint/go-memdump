@@ -43,3 +43,23 @@ func TestDelimetedReader_Simple(t *testing.T) {
 	hasNext = r.Next()
 	assert.False(t, hasNext)
 }
+
+func TestDelimetedReader_EmptyUnterminated(t *testing.T) {
+	r := newDelimitedReader(bytes.NewReader(nil))
+
+	buf := make([]byte, 100)
+
+	n, err := r.Read(buf)
+	assert.Equal(t, ErrUnexpectedEOF, err)
+	assert.Equal(t, 0, n)
+}
+
+func TestDelimetedReader_Unterminated(t *testing.T) {
+	r := newDelimitedReader(bytes.NewReader([]byte("abc")))
+
+	buf := make([]byte, 100)
+	n, err := r.Read(buf)
+	assert.Equal(t, ErrUnexpectedEOF, err)
+	assert.Equal(t, 3, n)
+	assert.Equal(t, "abc", string(buf[:n]))
+}

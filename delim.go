@@ -75,7 +75,7 @@ func (r *delimitedReader) Read(dest []byte) (int, error) {
 	}
 
 	// should be impossible
-	if nread == 0 && nbuf == 0 {
+	if nread == 0 && nbuf == 0 && !r.eof {
 		panic("read zero bytes from both buffer and reader")
 	}
 
