@@ -7,6 +7,7 @@ import (
 	"log"
 	"reflect"
 	"sort"
+	"sync"
 	"unsafe"
 )
 
@@ -15,8 +16,9 @@ const uintptrSize = unsafe.Sizeof(uintptr(0))
 
 // byteType is the reflect.Type of byte
 var (
-	byteType  = reflect.TypeOf(byte(0))
-	typeCache = make(map[reflect.Type]*typeInfo)
+	byteType      = reflect.TypeOf(byte(0))
+	typeCache     = make(map[reflect.Type]*typeInfo)
+	typeCacheLock sync.Mutex
 )
 
 // block represents a value to be written to the stream
@@ -34,7 +36,7 @@ type pointer struct {
 
 // typeInfo represents the location of the pointers in a type
 type typeInfo struct {
-	pointer []pointer
+	pointers []pointer
 }
 
 // asBytes gets a byte slice with data pointer set to the address of the
@@ -294,5 +296,5 @@ func Relocate(buf []byte, ptrLocs []int, t reflect.Type) interface{} {
 		v := (*uintptr)(unsafe.Pointer(&buf[loc]))
 		*v += base
 	}
-	return reflect.NewAt(t, unsafe.Pointer(&buf[0])).Elem().Interface()
+	return reflect.NewAt(t, unsafe.Pointer(&buf[0])).Interface()
 }

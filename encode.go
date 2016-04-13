@@ -125,6 +125,7 @@ func NewEncoder(w io.Writer) *Encoder {
 // pointer to the stream, pass a double pointer.
 func (e *Encoder) Encode(obj interface{}) error {
 	val := reflect.ValueOf(obj)
+	_ = val
 	// TODO
 	return nil
 }
