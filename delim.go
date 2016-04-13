@@ -32,6 +32,13 @@ type delimitedReader struct {
 	eof     bool
 }
 
+// newDelimetedReader creates a delimited reader
+func newDelimitedReader(r io.Reader) *delimitedReader {
+	return &delimitedReader{
+		r: r,
+	}
+}
+
 // Read extracts bytes from the underlying reader and returns EOF
 // when the delim is reached.
 func (r *delimitedReader) Read(dest []byte) (int, error) {
@@ -73,21 +80,22 @@ func (r *delimitedReader) Read(dest []byte) (int, error) {
 	}
 
 	// look for the delimeter
-	var nout, state int
+	var nout, nskip, state int
 	for i, b := range dest[:nbuf+nread] {
+		if b != delim[state] {
+			state = 0
+		}
+		// do not use "else" here because we updated state above
 		if b == delim[state] {
 			state++
 			if state == len(delim) {
 				r.atdelim = true
+				nskip = len(delim)
 				break
 			}
 		} else {
-			state = 0
-			nout = i
+			nout = i + 1
 		}
-	}
-	if len(dest[nout:]) > 32 { // should be impossible
-		panic("had more than 32 bytes left over")
 	}
 
 	// if we got EOF but no delimeter then we have an error
@@ -96,7 +104,7 @@ func (r *delimitedReader) Read(dest []byte) (int, error) {
 	}
 
 	// update buffer
-	r.buf = append(r.buf[:0], dest[nout:nbuf+nread]...)
+	r.buf = append(r.buf[:0], dest[nout+nskip:nbuf+nread]...)
 	return nout, nil
 }
 
