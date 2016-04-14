@@ -1,4 +1,4 @@
-package structbuffer
+package memdump
 
 import (
 	"bytes"
