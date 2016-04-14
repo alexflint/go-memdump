@@ -113,10 +113,19 @@ func (r *delimitedReader) Read(dest []byte) (int, error) {
 // Next proceeds to the next segment and returns true if there is another
 // segment to extract.
 func (r *delimitedReader) Next() bool {
-	if r.eof && len(r.buf) == 0 {
+	if len(r.buf) > 0 {
+		r.atdelim = false
+		return true
+	}
+	if r.eof {
 		return false
 	}
-	r.atdelim = false
+	r.buf = make([]byte, 64)
+	n, err := r.Read(r.buf)
+	if err == io.EOF {
+		r.eof = true
+		return n > 0
+	}
 	return true
 }
 

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func join(bufs ...[]byte) []byte {
@@ -36,6 +37,27 @@ func TestDelimitedReader_Simple(t *testing.T) {
 	assert.False(t, hasNext)
 }
 
+func TestDelimitedReader_Long(t *testing.T) {
+	data := make([]byte, 132)
+	for i := range data {
+		data[i] = 0
+	}
+	copy(data[100:], delim)
+	r := newDelimitedReader(bytes.NewReader(data))
+
+	buf := make([]byte, 80)
+
+	n, err := r.Read(buf)
+	require.NoError(t, err)
+	assert.Equal(t, 80, n)
+
+	n, err = r.Read(buf)
+	assert.Equal(t, io.EOF, err)
+	assert.Equal(t, 20, n)
+
+	hasNext := r.Next()
+	assert.False(t, hasNext)
+}
 func TestDelimitedReader_SimpleThenEmpty(t *testing.T) {
 	data := join([]byte("abc"), delim, delim)
 	r := newDelimitedReader(bytes.NewReader(data))
