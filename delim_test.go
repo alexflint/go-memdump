@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func join(bufs ...[]byte) []byte {
@@ -21,21 +20,35 @@ func TestDelimitedReader_Simple(t *testing.T) {
 	buf := make([]byte, 100)
 
 	n, err := r.Read(buf)
-	require.NoError(t, err)
+	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, 3, n)
 	assert.Equal(t, "abc", string(buf[:n]))
-
-	n, err = r.Read(buf)
-	assert.Equal(t, 0, n)
-	assert.Equal(t, io.EOF, err)
 
 	hasNext := r.Next()
 	assert.True(t, hasNext)
 
 	n, err = r.Read(buf)
-	require.NoError(t, err)
+	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, 6, n)
 	assert.Equal(t, "defggg", string(buf[:n]))
+
+	hasNext = r.Next()
+	assert.False(t, hasNext)
+}
+
+func TestDelimitedReader_SimpleThenEmpty(t *testing.T) {
+	data := join([]byte("abc"), delim, delim)
+	r := newDelimitedReader(bytes.NewReader(data))
+
+	buf := make([]byte, 100)
+
+	n, err := r.Read(buf)
+	assert.Equal(t, io.EOF, err)
+	assert.Equal(t, 3, n)
+	assert.Equal(t, "abc", string(buf[:n]))
+
+	hasNext := r.Next()
+	assert.True(t, hasNext)
 
 	n, err = r.Read(buf)
 	assert.Equal(t, 0, n)
@@ -44,7 +57,6 @@ func TestDelimitedReader_Simple(t *testing.T) {
 	hasNext = r.Next()
 	assert.False(t, hasNext)
 }
-
 func TestDelimitedReader_EmptyUnterminated(t *testing.T) {
 	r := newDelimitedReader(bytes.NewReader(nil))
 

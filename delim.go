@@ -80,6 +80,7 @@ func (r *delimitedReader) Read(dest []byte) (int, error) {
 	}
 
 	// look for the delimeter
+	var errout error
 	var nout, nskip, state int
 	for i, b := range dest[:nbuf+nread] {
 		if b != delim[state] {
@@ -90,6 +91,7 @@ func (r *delimitedReader) Read(dest []byte) (int, error) {
 			state++
 			if state == len(delim) {
 				r.atdelim = true
+				errout = io.EOF
 				nskip = len(delim)
 				break
 			}
@@ -105,7 +107,7 @@ func (r *delimitedReader) Read(dest []byte) (int, error) {
 
 	// update buffer
 	r.buf = append(r.buf[:0], dest[nout+nskip:nbuf+nread]...)
-	return nout, nil
+	return nout, errout
 }
 
 // Next proceeds to the next segment and returns true if there is another
