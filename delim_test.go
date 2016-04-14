@@ -3,6 +3,7 @@ package structbuffer
 import (
 	"bytes"
 	"io"
+	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +14,7 @@ func join(bufs ...[]byte) []byte {
 	return bytes.Join(bufs, nil)
 }
 
-func TestDelimetedReader_Simple(t *testing.T) {
+func TestDelimitedReader_Simple(t *testing.T) {
 	data := join([]byte("abc"), delim, []byte("defggg"), delim)
 	r := newDelimitedReader(bytes.NewReader(data))
 
@@ -44,7 +45,7 @@ func TestDelimetedReader_Simple(t *testing.T) {
 	assert.False(t, hasNext)
 }
 
-func TestDelimetedReader_EmptyUnterminated(t *testing.T) {
+func TestDelimitedReader_EmptyUnterminated(t *testing.T) {
 	r := newDelimitedReader(bytes.NewReader(nil))
 
 	buf := make([]byte, 100)
@@ -54,12 +55,9 @@ func TestDelimetedReader_EmptyUnterminated(t *testing.T) {
 	assert.Equal(t, 0, n)
 }
 
-func TestDelimetedReader_Unterminated(t *testing.T) {
+func TestDelimitedReader_Unterminated(t *testing.T) {
 	r := newDelimitedReader(bytes.NewReader([]byte("abc")))
-
-	buf := make([]byte, 100)
-	n, err := r.Read(buf)
+	buf, err := ioutil.ReadAll(r)
 	assert.Equal(t, ErrUnexpectedEOF, err)
-	assert.Equal(t, 3, n)
-	assert.Equal(t, "abc", string(buf[:n]))
+	assert.Equal(t, "abc", string(buf))
 }
