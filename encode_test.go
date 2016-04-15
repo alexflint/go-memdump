@@ -74,3 +74,17 @@ func TestEncodeDecodeStruct(t *testing.T) {
 	testEncodeDecode(t, &src, &dest)
 	assert.EqualValues(t, src, dest)
 }
+
+func TestEncodeUnsupportedTypes(t *testing.T) {
+	var buf bytes.Buffer
+	enc := NewEncoder(&buf)
+	assert.Panics(t, func() {
+		enc.Encode(&map[string]int{})
+	})
+	assert.Panics(t, func() {
+		enc.Encode(func() {})
+	})
+	assert.Panics(t, func() {
+		enc.Encode(make(chan int))
+	})
+}
