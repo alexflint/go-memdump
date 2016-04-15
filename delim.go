@@ -111,7 +111,6 @@ func (r *delimitedReader) Read(dest []byte) (int, error) {
 
 // Next proceeds to the next segment and returns true if there is another
 // segment to extract.
-func (r *delimitedReader) Next() bool {
+func (r *delimitedReader) Next() {
 	r.atdelim = false
-	return true
 }

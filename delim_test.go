@@ -25,16 +25,14 @@ func TestDelimitedReader_Simple(t *testing.T) {
 	assert.Equal(t, 3, n)
 	assert.Equal(t, "abc", string(buf[:n]))
 
-	hasNext := r.Next()
-	assert.True(t, hasNext)
+	r.Next()
 
 	n, err = r.Read(buf)
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, 6, n)
 	assert.Equal(t, "defggg", string(buf[:n]))
 
-	hasNext = r.Next()
-	assert.False(t, hasNext)
+	r.Next()
 }
 
 func TestDelimitedReader_Long(t *testing.T) {
@@ -55,9 +53,9 @@ func TestDelimitedReader_Long(t *testing.T) {
 	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, 20, n)
 
-	hasNext := r.Next()
-	assert.False(t, hasNext)
+	r.Next()
 }
+
 func TestDelimitedReader_SimpleThenEmpty(t *testing.T) {
 	data := join([]byte("abc"), delim, delim)
 	r := newDelimitedReader(bytes.NewReader(data))
@@ -69,15 +67,13 @@ func TestDelimitedReader_SimpleThenEmpty(t *testing.T) {
 	assert.Equal(t, 3, n)
 	assert.Equal(t, "abc", string(buf[:n]))
 
-	hasNext := r.Next()
-	assert.True(t, hasNext)
+	r.Next()
 
 	n, err = r.Read(buf)
 	assert.Equal(t, 0, n)
 	assert.Equal(t, io.EOF, err)
 
-	hasNext = r.Next()
-	assert.False(t, hasNext)
+	r.Next()
 }
 func TestDelimitedReader_EmptyUnterminated(t *testing.T) {
 	r := newDelimitedReader(bytes.NewReader(nil))
