@@ -2,6 +2,7 @@ package memdump
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,6 +38,21 @@ func TestEncodeDecodeString(t *testing.T) {
 func TestEncodeDecodeSlice(t *testing.T) {
 	var dest []int16
 	src := []int16{5, 4, 3}
+	testEncodeDecode(t, &src, &dest)
+	assert.EqualValues(t, src, dest)
+}
+
+func TestEncodeDecodeLarge(t *testing.T) {
+	type T struct {
+		A string
+		B int
+	}
+	src := make([]T, 1000)
+	for i := range src {
+		src[i].A = strings.Repeat("123", 100)
+		src[i].B = 123
+	}
+	var dest []T
 	testEncodeDecode(t, &src, &dest)
 	assert.EqualValues(t, src, dest)
 }
