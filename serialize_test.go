@@ -10,14 +10,6 @@ import (
 )
 
 func assertSerialize(t *testing.T, obj interface{}) {
-	var b bytes.Buffer
-	enc := newMemEncoder(&b)
-	ptrs, err := enc.Encode(obj)
-	assert.NoError(t, err)
-	f := footer{Pointers: ptrs}
-	obj2, err := relocate(b.Bytes(), &f, reflect.TypeOf(obj).Elem())
-	require.NoError(t, err)
-	assert.EqualValues(t, obj, obj2)
 }
 
 func TestSerialize_Struct(t *testing.T) {
@@ -29,5 +21,14 @@ func TestSerialize_Struct(t *testing.T) {
 		X: 3,
 		y: 7,
 	}
-	assertSerialize(t, obj)
+
+	var b bytes.Buffer
+	enc := newMemEncoder(&b)
+	ptrs, err := enc.Encode(&obj)
+	require.NoError(t, err)
+
+	f := footer{Pointers: ptrs}
+	obj2, err := relocate(b.Bytes(), &f, reflect.TypeOf(obj))
+	require.NoError(t, err)
+	assert.EqualValues(t, &obj, obj2)
 }
