@@ -90,9 +90,7 @@ func (w *countingWriter) Write(buf []byte) (int, error) {
 // memEncoder writes the in-memory representation of an object, together
 // with all referenced objects.
 type memEncoder struct {
-	w       countingWriter
-	ptrLocs []int
-	next    uintptr
+	w countingWriter
 }
 
 func newMemEncoder(w io.Writer) *memEncoder {
@@ -101,9 +99,15 @@ func newMemEncoder(w io.Writer) *memEncoder {
 	}
 }
 
+// memEncoderState contains the state that is only kept within a single Encode() call.
+type memEncoderState struct {
+	ptrLocs []int
+	next    uintptr
+}
+
 // alloc makes room for an object of the specified size, and returns the
 // base offset for that object.
-func (e *memEncoder) alloc(size uintptr) uintptr {
+func (e *memEncoderState) alloc(size uintptr) uintptr {
 	cur := e.next
 	e.next += size
 	return cur
@@ -133,8 +137,11 @@ func arrayFromSlice(sliceval reflect.Value) reflect.Value {
 	return reflect.NewAt(typ, unsafe.Pointer(hdr.Data)).Elem()
 }
 
-// Encode writes the in-memory representation of the object pointed to by ptr.
-func (e *memEncoder) Encode(ptr interface{}) error {
+// Encode writes the in-memory representation of the object pointed to by ptr. It
+// returns the offset of each pointer and an error.
+func (e *memEncoder) Encode(ptr interface{}) ([]int, error) {
+	var state memEncoderState
+
 	ptrval := reflect.ValueOf(ptr)
 	objval := ptrval.Elem()
 
@@ -142,7 +149,7 @@ func (e *memEncoder) Encode(ptr interface{}) error {
 
 	queue := []block{block{
 		src:  objval,
-		dest: e.alloc(objval.Type().Size()),
+		dest: state.alloc(objval.Type().Size()),
 		size: objval.Type().Size(),
 	}}
 
@@ -169,7 +176,7 @@ func (e *memEncoder) Encode(ptr interface{}) error {
 		for _, ptr := range info.pointers {
 			_, err := e.w.Write(blockbytes[blockpos:ptr.offset])
 			if err != nil {
-				return err
+				return nil, err
 			}
 
 			log.Printf("  translating %s at %d", ptr.typ, int(cur.dest+ptr.offset))
@@ -182,7 +189,7 @@ func (e *memEncoder) Encode(ptr interface{}) error {
 			if isNil(ptrval) {
 				log.Println("    pointer is nil")
 			} else {
-				e.ptrLocs = append(e.ptrLocs, int(cur.dest+ptr.offset))
+				state.ptrLocs = append(state.ptrLocs, int(cur.dest+ptr.offset))
 
 				var found bool
 				dest, found = cache[readPointer(ptrval)]
@@ -190,7 +197,7 @@ func (e *memEncoder) Encode(ptr interface{}) error {
 					switch ptr.typ.Kind() {
 					case reflect.Ptr:
 						size := ptr.typ.Elem().Size()
-						dest = e.alloc(size)
+						dest = state.alloc(size)
 						queue = append(queue, block{
 							src:  ptrval.Elem(),
 							dest: dest,
@@ -198,7 +205,7 @@ func (e *memEncoder) Encode(ptr interface{}) error {
 						})
 					case reflect.Slice:
 						size := uintptr(ptrval.Len()) * ptr.typ.Elem().Size()
-						dest = e.alloc(size)
+						dest = state.alloc(size)
 						arr := arrayFromSlice(ptrval)
 						queue = append(queue, block{
 							src:  arr,
@@ -207,7 +214,7 @@ func (e *memEncoder) Encode(ptr interface{}) error {
 						})
 					case reflect.String:
 						size := uintptr(ptrval.Len())
-						dest = e.alloc(size)
+						dest = state.alloc(size)
 						arr := arrayFromString(ptrval)
 						queue = append(queue, block{
 							src:  arr,
@@ -221,14 +228,14 @@ func (e *memEncoder) Encode(ptr interface{}) error {
 
 			err = binary.Write(&e.w, binary.LittleEndian, uint64(dest))
 			if err != nil {
-				return err
+				return nil, err
 			}
 			blockpos = ptr.offset + uintptrSize
 		}
 		e.w.Write(blockbytes[blockpos:])
 	}
 
-	return nil
+	return state.ptrLocs, nil
 }
 
 // pointerFinder gets the byte offset of each pointer in an object. It
@@ -288,13 +295,19 @@ func lookupType(t reflect.Type) *typeInfo {
 	return info
 }
 
-// Relocate adds the base address to each pointer in the buffer, then reinterprets
+// relocate adds the base address to each pointer in the buffer, then reinterprets
 // the buffer as an object of type t.
-func Relocate(buf []byte, ptrLocs []int, t reflect.Type) interface{} {
+func relocate(buf []byte, f *footer, t reflect.Type) (interface{}, error) {
 	base := uintptr(unsafe.Pointer(&buf[0]))
-	for _, loc := range ptrLocs {
+	for i, loc := range f.Pointers {
+		if loc < 0 || loc >= len(buf) {
+			return nil, fmt.Errorf("pointer %d was out of range: %d (buffer len=%d)", i, loc, len(buf))
+		}
 		v := (*uintptr)(unsafe.Pointer(&buf[loc]))
 		*v += base
 	}
-	return reflect.NewAt(t, unsafe.Pointer(&buf[0])).Interface()
+	if f.Main < 0 || f.Main >= len(buf) {
+		return nil, fmt.Errorf("footer.Main was out of range: %d (buffer len=%d)", f.Main, len(buf))
+	}
+	return reflect.NewAt(t, unsafe.Pointer(&buf[f.Main])).Interface(), nil
 }

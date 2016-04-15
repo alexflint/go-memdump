@@ -3,7 +3,6 @@ package memdump
 import (
 	"errors"
 	"io"
-	"reflect"
 )
 
 // delim is used to recognize the end of the memory dump
@@ -127,24 +126,4 @@ func (r *delimitedReader) Next() bool {
 		return n > 0
 	}
 	return true
-}
-
-// Encoder writes objects to a stream
-type Encoder struct {
-	w io.Writer
-}
-
-// NewEncoder creates an encoder that writes to the provided writer
-func NewEncoder(w io.Writer) *Encoder {
-	return &Encoder{w: w}
-}
-
-// Encode adds an object to the output stream. The object should
-// be a pointer to the object you wish to encode. To encode a
-// pointer to the stream, pass a double pointer.
-func (e *Encoder) Encode(obj interface{}) error {
-	val := reflect.ValueOf(obj)
-	_ = val
-	// TODO
-	return nil
 }
