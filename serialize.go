@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"log"
 	"reflect"
 	"sort"
 	"sync"
@@ -159,7 +158,6 @@ func (e *memEncoder) Encode(ptr interface{}) ([]int, error) {
 
 		blockaddr := cur.src.Addr().Pointer()
 		blockbytes := asBytes(cur.src)
-		log.Printf("at %v (%d bytes)", cur.src.Type(), len(blockbytes))
 		if len(blockbytes) != int(cur.size) {
 			panic(fmt.Sprintf("expected %v to be %d bytes but turned out to be %d bytes",
 				cur.src.Type(), cur.size, len(blockbytes)))
@@ -170,7 +168,6 @@ func (e *memEncoder) Encode(ptr interface{}) ([]int, error) {
 		}
 
 		info := lookupType(cur.src.Type())
-		log.Printf("  found %d pointers", len(info.pointers))
 
 		var blockpos uintptr
 		for _, ptr := range info.pointers {
@@ -179,16 +176,12 @@ func (e *memEncoder) Encode(ptr interface{}) ([]int, error) {
 				return nil, err
 			}
 
-			log.Printf("  translating %s at %d", ptr.typ, int(cur.dest+ptr.offset))
-
 			ptraddr := blockaddr + ptr.offset
 			ptrdata := unsafe.Pointer(ptraddr)
 			ptrval := reflect.NewAt(ptr.typ, ptrdata).Elem()
 
 			var dest uintptr
-			if isNil(ptrval) {
-				log.Println("    pointer is nil")
-			} else {
+			if !isNil(ptrval) {
 				state.ptrLocs = append(state.ptrLocs, int(cur.dest+ptr.offset))
 
 				var found bool
