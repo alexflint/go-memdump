@@ -91,6 +91,30 @@ func TestEncodeDecodeStruct(t *testing.T) {
 	assert.EqualValues(t, src, dest)
 }
 
+func TestEncodeDecodeIncompatible(t *testing.T) {
+	type U struct {
+		X int
+		Y string
+	}
+	type V struct {
+		X string
+		Y int
+	}
+
+	src := U{3, "abc"}
+	var dest V
+
+	var b bytes.Buffer
+
+	enc := NewEncoder(&b)
+	err := enc.Encode(&src)
+	require.NoError(t, err)
+
+	dec := NewDecoder(&b)
+	err = dec.Decode(&dest)
+	assert.Equal(t, ErrIncompatibleLayout, err)
+}
+
 func TestEncodeUnsupportedTypes(t *testing.T) {
 	var buf bytes.Buffer
 	enc := NewEncoder(&buf)

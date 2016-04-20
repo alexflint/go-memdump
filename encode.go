@@ -10,11 +10,16 @@ import (
 	"reflect"
 )
 
+var (
+	ErrIncompatibleLayout = errors.New("attempted to load data with incompatible layout")
+)
+
 const version int32 = 1
 
 type footer struct {
-	Pointers []int // Pointers contains the offset of each pointer
-	Main     int   // Main contains the offset of the primary object
+	Pointers   []int // Pointers contains the offset of each pointer
+	Main       int   // Main contains the offset of the primary object
+	Descriptor descriptor
 }
 
 // Encoder writes memdumps to the provided writer
@@ -34,6 +39,11 @@ func NewEncoder(w io.Writer) *Encoder {
 // pointer to the object you wish to encode. To encode a pointer, pass a
 // double-pointer.
 func (e *Encoder) Encode(obj interface{}) error {
+	t := reflect.TypeOf(obj)
+	if t.Kind() != reflect.Ptr {
+		panic(fmt.Sprintf("expected a pointer but got %T", obj))
+	}
+
 	// write a protocol version number
 	if !e.hasprotocol {
 		err := binary.Write(e.w, binary.LittleEndian, version)
@@ -59,7 +69,8 @@ func (e *Encoder) Encode(obj interface{}) error {
 	// second segment: write the metadata
 	gob := gob.NewEncoder(e.w)
 	err = gob.Encode(footer{
-		Pointers: ptrs,
+		Pointers:   ptrs,
+		Descriptor: describe(t.Elem()),
 	})
 	if err != nil {
 		return fmt.Errorf("error writing footer: %v", err)
@@ -92,7 +103,12 @@ func NewDecoder(r io.Reader) *Decoder {
 // The object passed to Decode must be a pointer to the type
 // was originally passed to Encode().
 func (d *Decoder) Decode(dest interface{}) error {
-	ptr, err := d.DecodePtr(reflect.TypeOf(dest).Elem())
+	t := reflect.TypeOf(dest)
+	if t.Kind() != reflect.Ptr {
+		panic(fmt.Sprintf("expected a pointer but got %T", dest))
+	}
+
+	ptr, err := d.DecodePtr(t.Elem())
 	if err != nil {
 		return err
 	}
@@ -139,6 +155,12 @@ func (d *Decoder) DecodePtr(typ reflect.Type) (interface{}, error) {
 		return nil, fmt.Errorf("error decoding footer: %v", err)
 	}
 	d.dr.Next()
+
+	// compare descriptors
+	descr := describe(typ)
+	if !descriptorsEqual(descr, f.Descriptor) {
+		return nil, ErrIncompatibleLayout
+	}
 
 	// relocate the data
 	return relocate(membuf, &f, typ)
