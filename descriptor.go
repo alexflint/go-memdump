@@ -42,25 +42,21 @@ func descriptorsEqual(a, b descriptor) bool {
 		if a[i].Size != b[i].Size {
 			return false
 		}
-		switch a[i].Kind {
-		case reflect.Array, reflect.Slice, reflect.Ptr:
-			if a[i].Elem != b[i].Elem {
+		if a[i].Elem != b[i].Elem {
+			return false
+		}
+		if len(a[i].Fields) != len(b[i].Fields) {
+			return false
+		}
+		for j := range a[i].Fields {
+			if a[i].Fields[j].Name != b[i].Fields[j].Name {
 				return false
 			}
-		case reflect.Struct:
-			if len(a[i].Fields) != len(b[i].Fields) {
+			if a[i].Fields[j].Offset != b[i].Fields[j].Offset {
 				return false
 			}
-			for j := range a[i].Fields {
-				if a[i].Fields[j].Name != b[i].Fields[j].Name {
-					return false
-				}
-				if a[i].Fields[j].Offset != b[i].Fields[j].Offset {
-					return false
-				}
-				if a[i].Fields[j].Type != b[i].Fields[j].Type {
-					return false
-				}
+			if a[i].Fields[j].Type != b[i].Fields[j].Type {
+				return false
 			}
 		}
 	}
