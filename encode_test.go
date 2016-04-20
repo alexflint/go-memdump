@@ -103,4 +103,8 @@ func TestEncodeUnsupportedTypes(t *testing.T) {
 	assert.Panics(t, func() {
 		enc.Encode(make(chan int))
 	})
+	assert.Panics(t, func() {
+		var x interface{} = "abc"
+		enc.Encode(&x)
+	})
 }
