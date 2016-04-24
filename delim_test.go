@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func join(bufs ...[]byte) []byte {
@@ -15,108 +14,87 @@ func join(bufs ...[]byte) []byte {
 
 func TestDelimitedReader_Simple(t *testing.T) {
 	data := join([]byte("abc"), delim, []byte("defggg"), delim)
-	r := newDelimitedReader(bytes.NewReader(data))
+	r := NewDelimitedReader(bytes.NewReader(data))
 
-	buf := make([]byte, 100)
+	seg, err := r.Next()
+	assert.NoError(t, err)
+	assert.Equal(t, "abc", string(seg))
 
-	n, err := r.Read(buf)
+	seg, err = r.Next()
+	assert.NoError(t, err)
+	assert.Equal(t, "defggg", string(seg))
+
+	seg, err = r.Next()
 	assert.Equal(t, io.EOF, err)
-	assert.Equal(t, 3, n)
-	assert.Equal(t, "abc", string(buf[:n]))
-
-	r.Next()
-
-	n, err = r.Read(buf)
-	assert.Equal(t, io.EOF, err)
-	assert.Equal(t, 6, n)
-	assert.Equal(t, "defggg", string(buf[:n]))
-
-	r.Next()
+	assert.Nil(t, seg)
 }
 
 func TestDelimitedReader_Long(t *testing.T) {
-	data := make([]byte, 132)
+	data := make([]byte, 32768)
 	for i := range data {
 		data[i] = 0
 	}
-	copy(data[100:], delim)
-	r := newDelimitedReader(bytes.NewReader(data))
+	copy(data[len(data)-len(delim):], delim)
+	r := NewDelimitedReader(bytes.NewReader(data))
 
-	buf := make([]byte, 80)
+	seg, err := r.Next()
+	assert.NoError(t, err)
+	assert.Len(t, seg, len(data)-len(delim))
 
-	n, err := r.Read(buf)
-	require.NoError(t, err)
-	assert.Equal(t, 80, n)
-
-	n, err = r.Read(buf)
+	seg, err = r.Next()
 	assert.Equal(t, io.EOF, err)
-	assert.Equal(t, 20, n)
-
-	r.Next()
+	assert.Nil(t, seg)
 }
 
 func TestDelimitedReader_SimpleThenEmpty(t *testing.T) {
 	data := join([]byte("abc"), delim, delim)
-	r := newDelimitedReader(bytes.NewReader(data))
+	r := NewDelimitedReader(bytes.NewReader(data))
 
-	buf := make([]byte, 100)
+	seg, err := r.Next()
+	assert.NoError(t, err)
+	assert.Equal(t, "abc", string(seg))
 
-	n, err := r.Read(buf)
+	seg, err = r.Next()
+	assert.NoError(t, err)
+	assert.NotNil(t, seg)
+	assert.Equal(t, "", string(seg))
+
+	seg, err = r.Next()
 	assert.Equal(t, io.EOF, err)
-	assert.Equal(t, 3, n)
-	assert.Equal(t, "abc", string(buf[:n]))
-
-	r.Next()
-
-	n, err = r.Read(buf)
-	assert.Equal(t, 0, n)
-	assert.Equal(t, io.EOF, err)
-
-	r.Next()
+	assert.Nil(t, seg)
 }
 
-func TestDelimitedReader_EmptyUnterminated(t *testing.T) {
-	r := newDelimitedReader(bytes.NewReader(nil))
-	buf := make([]byte, 100)
-	n, err := r.Read(buf)
+func TestDelimitedReader_Empty(t *testing.T) {
+	r := NewDelimitedReader(bytes.NewReader(nil))
+	seg, err := r.Next()
 	assert.Equal(t, io.EOF, err)
-	assert.Equal(t, 0, n)
+	assert.Nil(t, seg)
+
+	// same thing again
+	seg, err = r.Next()
+	assert.Equal(t, io.EOF, err)
+	assert.Nil(t, seg)
 }
 
 func TestDelimitedReader_Unterminated(t *testing.T) {
-	r := newDelimitedReader(bytes.NewReader([]byte("abc")))
-	buf := make([]byte, 100)
-
-	n, err := r.Read(buf)
-	assert.NoError(t, err)
-	assert.Equal(t, "abc", string(buf[:n]))
-
-	n, err = r.Read(buf)
+	r := NewDelimitedReader(bytes.NewReader([]byte("abc")))
+	_, err := r.Next()
 	assert.Equal(t, ErrUnexpectedEOF, err)
-	assert.Equal(t, 0, n)
 }
 
 func TestDelimitedReader_ReadAfterEOF(t *testing.T) {
 	data := join([]byte("abc"), delim)
-	r := newDelimitedReader(bytes.NewReader(data))
+	r := NewDelimitedReader(bytes.NewReader(data))
 
-	buf := make([]byte, 100)
+	// first read: should not return error
+	_, err := r.Next()
+	assert.NoError(t, err)
 
-	// first read: should return EOF
-	_, err := r.Read(buf)
+	// second read: should return EOF
+	_, err = r.Next()
 	assert.Equal(t, io.EOF, err)
-
-	// second read: should return EOF again
-	_, err = r.Read(buf)
-	assert.Equal(t, io.EOF, err)
-
-	r.Next()
 
 	// third read: should return EOF again
-	_, err = r.Read(buf)
-	assert.Equal(t, io.EOF, err)
-
-	// fourth read: should return EOF again
-	_, err = r.Read(buf)
+	_, err = r.Next()
 	assert.Equal(t, io.EOF, err)
 }

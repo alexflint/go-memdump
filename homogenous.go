@@ -4,10 +4,8 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/gob"
-	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"reflect"
 )
 
@@ -146,16 +144,14 @@ func (e *Encoder) Encode(obj interface{}) error {
 
 // Decoder reads memdumps from the provided reader
 type Decoder struct {
-	r  io.Reader
-	dr *delimitedReader
+	dr *DelimitedReader
 	t  reflect.Type
 }
 
 // New creates a Decoder that reads memdumps
 func NewDecoder(r io.Reader) *Decoder {
 	return &Decoder{
-		r:  r,
-		dr: newDelimitedReader(r),
+		dr: NewDelimitedReader(r),
 	}
 }
 
@@ -185,15 +181,17 @@ func (d *Decoder) DecodePtr(t reflect.Type) (interface{}, error) {
 		panic(fmt.Sprintf("each call to Encode should pass the same type, but got %v then %v", d.t, t))
 	}
 
-	// read protocol
+	// read the header
 	if d.t == nil {
 		// decode the descriptor
-		var header header
-		dec := gob.NewDecoder(d.dr)
-		err := dec.Decode(&header)
-		if err == io.EOF {
-			return nil, errors.New("header was missing")
+		seg, err := d.dr.Next()
+		if err != nil {
+			return nil, fmt.Errorf("error reading header segment: %v", err)
 		}
+
+		var header header
+		dec := gob.NewDecoder(bytes.NewBuffer(seg))
+		err = dec.Decode(&header)
 		if err != nil {
 			return nil, fmt.Errorf("error decoding header: %v", err)
 		}
@@ -204,37 +202,31 @@ func (d *Decoder) DecodePtr(t reflect.Type) (interface{}, error) {
 			return nil, ErrIncompatibleLayout
 		}
 
-		d.dr.Next()
 		d.t = t
 	}
 
-	// first segment: read the memory buffer
-	databuf, err := ioutil.ReadAll(d.dr)
-	if len(databuf) == 0 && d.dr.EOF() {
+	// read the data
+	dataseg, err := d.dr.Next()
+	if len(dataseg) == 0 && err == io.EOF {
 		return nil, io.EOF
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error reading data segment: %v", err)
 	}
-	d.dr.Next()
 
-	// second segment: read the footer
-	footerbuf, err := ioutil.ReadAll(d.dr)
+	// read the footer
+	footerseg, err := d.dr.Next()
 	if err != nil {
 		return nil, fmt.Errorf("error decoding footer: %v", err)
 	}
-	if len(footerbuf) == 0 {
-		return nil, fmt.Errorf("footer was missing")
-	}
-	d.dr.Next()
 
 	// decode footer
 	var f footer
-	err = decodeFooter(bytes.NewBuffer(footerbuf), &f)
+	err = decodeFooter(bytes.NewBuffer(footerseg), &f)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding footer: %v", err)
 	}
 
 	// relocate the data
-	return relocate(databuf, f.Pointers, f.Main, t)
+	return relocate(dataseg, f.Pointers, f.Main, t)
 }
