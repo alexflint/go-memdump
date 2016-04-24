@@ -1,12 +1,11 @@
 package memdump
 
 import (
+	"bytes"
 	"encoding/binary"
 	"encoding/gob"
-	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"reflect"
 )
 
@@ -81,7 +80,7 @@ func (e *HeterogeneousEncoder) Encode(obj interface{}) error {
 // HeterogeneousDecoder reads memdumps from the provided reader
 type HeterogeneousDecoder struct {
 	r           io.Reader
-	dr          *delimitedReader
+	dr          *DelimitedReader
 	hasprotocol bool
 }
 
@@ -89,7 +88,7 @@ type HeterogeneousDecoder struct {
 func NewHeterogeneousDecoder(r io.Reader) *HeterogeneousDecoder {
 	return &HeterogeneousDecoder{
 		r:  r,
-		dr: newDelimitedReader(r),
+		dr: NewDelimitedReader(r),
 	}
 }
 
@@ -129,26 +128,27 @@ func (d *HeterogeneousDecoder) DecodePtr(typ reflect.Type) (interface{}, error) 
 	}
 
 	// first segment: read the memory buffer
-	membuf, err := ioutil.ReadAll(d.dr)
-	if len(membuf) == 0 && err == io.EOF {
+	dataseg, err := d.dr.Next()
+	if len(dataseg) == 0 && err == io.EOF {
 		return nil, io.EOF
 	}
 	if err != nil {
 		return nil, fmt.Errorf("error reading data segment: %v", err)
 	}
-	d.dr.Next()
 
-	// second segment: read the heterogeneousFooter
-	var f heterogeneousFooter
-	dec := gob.NewDecoder(d.dr)
-	err = dec.Decode(&f)
-	if err == io.EOF {
-		return nil, errors.New("heterogeneousFooter was missing")
-	}
+	// read the footer
+	footerseg, err := d.dr.Next()
 	if err != nil {
-		return nil, fmt.Errorf("error decoding heterogeneousFooter: %v", err)
+		return nil, fmt.Errorf("error reading footer segment: %v", err)
 	}
-	d.dr.Next()
+
+	// decode footer
+	var f heterogeneousFooter
+	dec := gob.NewDecoder(bytes.NewBuffer(footerseg))
+	err = dec.Decode(&f)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding footer: %v", err)
+	}
 
 	// compare descriptors
 	descr := describe(typ)
@@ -157,5 +157,5 @@ func (d *HeterogeneousDecoder) DecodePtr(typ reflect.Type) (interface{}, error) 
 	}
 
 	// relocate the data
-	return relocate(membuf, f.Pointers, f.Main, typ)
+	return relocate(dataseg, f.Pointers, f.Main, typ)
 }
