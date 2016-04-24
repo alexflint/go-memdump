@@ -75,6 +75,7 @@ func TestDelimitedReader_SimpleThenEmpty(t *testing.T) {
 
 	r.Next()
 }
+
 func TestDelimitedReader_EmptyUnterminated(t *testing.T) {
 	r := newDelimitedReader(bytes.NewReader(nil))
 
@@ -90,4 +91,29 @@ func TestDelimitedReader_Unterminated(t *testing.T) {
 	buf, err := ioutil.ReadAll(r)
 	assert.Equal(t, ErrUnexpectedEOF, err)
 	assert.Equal(t, "abc", string(buf))
+}
+
+func TestDelimitedReader_ReadAfterEOF(t *testing.T) {
+	data := join([]byte("abc"), delim)
+	r := newDelimitedReader(bytes.NewReader(data))
+
+	buf := make([]byte, 100)
+
+	// first read: should return EOF
+	_, err := r.Read(buf)
+	assert.Equal(t, io.EOF, err)
+
+	// second read: should return EOF again
+	_, err = r.Read(buf)
+	assert.Equal(t, io.EOF, err)
+
+	r.Next()
+
+	// third read: should return EOF again
+	_, err = r.Read(buf)
+	assert.Equal(t, io.EOF, err)
+
+	// fourth read: should return EOF again
+	_, err = r.Read(buf)
+	assert.Equal(t, io.EOF, err)
 }

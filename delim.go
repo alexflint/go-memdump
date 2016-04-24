@@ -7,16 +7,14 @@ import (
 
 // delim is used to recognize the end of the memory dump
 var delim = []byte{
-	130, 4, 133, 49, 108, 178, 125, 95,
-	35, 126, 41, 129, 229, 48, 6, 94,
-	69, 20, 194, 236, 79, 156, 67, 100,
-	239, 152, 149, 93, 91, 56, 8, 183,
+	130, 14, 133, 49, 108, 178, 125, 95,
+	35, 126, 41, 129, 229, 48, 16, 94,
 }
 
 // ErrBufferTooSmall is returned by delimetedReader if the input buffer
 // is smaller than the length of the delimeter
 var ErrBufferTooSmall = errors.New(
-	"cannot read into buffer of size less than 32 bytes (due to delim)")
+	"cannot read into buffer of size less than 16 bytes (due to delim)")
 
 // ErrUnexpectedEOF is returned by delimetedReader if EOF is reached
 // before finding a delimeter
@@ -41,13 +39,14 @@ func newDelimitedReader(r io.Reader) *delimitedReader {
 // Read extracts bytes from the underlying reader and returns EOF
 // when the delim is reached.
 func (r *delimitedReader) Read(dest []byte) (int, error) {
-	if len(dest) < len(delim) {
-		return 0, ErrBufferTooSmall
+	// if we are already at EOF then we are done
+	if r.eof || r.atdelim {
+		return 0, io.EOF
 	}
 
-	// check whether we are already at delim
-	if r.atdelim {
-		return 0, io.EOF
+	// check the size of the buffer
+	if len(dest) < len(delim) {
+		return 0, ErrBufferTooSmall
 	}
 
 	// first copy from buf
@@ -73,9 +72,12 @@ func (r *delimitedReader) Read(dest []byte) (int, error) {
 		}
 	}
 
-	// should be impossible
-	if nread == 0 && nbuf == 0 && !r.eof {
-		panic("read zero bytes from both buffer and reader")
+	if nread == 0 && nbuf == 0 {
+		if !r.eof {
+			// should be impossible
+			panic("read zero bytes from both buffer and reader")
+		}
+		return 0, io.EOF
 	}
 
 	// look for the delimeter
