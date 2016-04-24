@@ -27,8 +27,7 @@ func TestSerialize_Struct(t *testing.T) {
 	ptrs, err := enc.Encode(&obj)
 	require.NoError(t, err)
 
-	f := footer{Pointers: ptrs}
-	obj2, err := relocate(b.Bytes(), &f, reflect.TypeOf(obj))
+	obj2, err := relocate(b.Bytes(), ptrs, 0, reflect.TypeOf(obj))
 	require.NoError(t, err)
 	assert.EqualValues(t, &obj, obj2)
 }

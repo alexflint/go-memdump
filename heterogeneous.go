@@ -10,27 +10,21 @@ import (
 	"reflect"
 )
 
-var (
-	ErrIncompatibleLayout = errors.New("attempted to load data with incompatible layout")
-)
-
-const version int32 = 1
-
-type footer struct {
+type heterogeneousFooter struct {
 	Pointers   []int // Pointers contains the offset of each pointer
 	Main       int   // Main contains the offset of the primary object
 	Descriptor descriptor
 }
 
-// Encoder writes memdumps to the provided writer
-type Encoder struct {
+// HeterogeneousEncoder writes memdumps to the provided writer
+type HeterogeneousEncoder struct {
 	w           io.Writer
 	hasprotocol bool
 }
 
-// NewEncoder creates an encoder that writes memdumps to the provided writer
-func NewEncoder(w io.Writer) *Encoder {
-	return &Encoder{
+// NewHeterogeneousEncoder creates an HeterogeneousEncoder that writes memdumps to the provided writer
+func NewHeterogeneousEncoder(w io.Writer) *HeterogeneousEncoder {
+	return &HeterogeneousEncoder{
 		w: w,
 	}
 }
@@ -38,15 +32,15 @@ func NewEncoder(w io.Writer) *Encoder {
 // Encode writes a memdump of the provided object to output. You must pass a
 // pointer to the object you wish to encode. To encode a pointer, pass a
 // double-pointer.
-func (e *Encoder) Encode(obj interface{}) error {
+func (e *HeterogeneousEncoder) Encode(obj interface{}) error {
 	t := reflect.TypeOf(obj)
 	if t.Kind() != reflect.Ptr {
 		panic(fmt.Sprintf("expected a pointer but got %T", obj))
 	}
 
-	// write a protocol version number
+	// write a protocol heterogeneousProtocol number
 	if !e.hasprotocol {
-		err := binary.Write(e.w, binary.LittleEndian, version)
+		err := binary.Write(e.w, binary.LittleEndian, heterogeneousProtocol)
 		if err != nil {
 			return fmt.Errorf("error writing protocol: %v", err)
 		}
@@ -68,12 +62,12 @@ func (e *Encoder) Encode(obj interface{}) error {
 
 	// second segment: write the metadata
 	gob := gob.NewEncoder(e.w)
-	err = gob.Encode(footer{
+	err = gob.Encode(heterogeneousFooter{
 		Pointers:   ptrs,
 		Descriptor: describe(t.Elem()),
 	})
 	if err != nil {
-		return fmt.Errorf("error writing footer: %v", err)
+		return fmt.Errorf("error writing heterogeneousFooter: %v", err)
 	}
 
 	// write delimiter
@@ -84,16 +78,16 @@ func (e *Encoder) Encode(obj interface{}) error {
 	return nil
 }
 
-// Decoder reads memdumps from the provided reader
-type Decoder struct {
+// HeterogeneousDecoder reads memdumps from the provided reader
+type HeterogeneousDecoder struct {
 	r           io.Reader
 	dr          *delimitedReader
 	hasprotocol bool
 }
 
-// NewDecoder creates a decoder that reads memdumps
-func NewDecoder(r io.Reader) *Decoder {
-	return &Decoder{
+// NewHeterogeneousDecoder creates a HeterogeneousDecoder that reads memdumps
+func NewHeterogeneousDecoder(r io.Reader) *HeterogeneousDecoder {
+	return &HeterogeneousDecoder{
 		r:  r,
 		dr: newDelimitedReader(r),
 	}
@@ -102,7 +96,7 @@ func NewDecoder(r io.Reader) *Decoder {
 // Decode reads an object of the specified type from the input.
 // The object passed to Decode must be a pointer to the type
 // was originally passed to Encode().
-func (d *Decoder) Decode(dest interface{}) error {
+func (d *HeterogeneousDecoder) Decode(dest interface{}) error {
 	t := reflect.TypeOf(dest)
 	if t.Kind() != reflect.Ptr {
 		panic(fmt.Sprintf("expected a pointer but got %T", dest))
@@ -120,7 +114,7 @@ func (d *Decoder) Decode(dest interface{}) error {
 // and returns a pointer to it. The provided type must be the result
 // of calling reflect.TypeOf(x) where x is the object originally
 // passed to Encode(). The return valoue will be of type *x
-func (d *Decoder) DecodePtr(typ reflect.Type) (interface{}, error) {
+func (d *HeterogeneousDecoder) DecodePtr(typ reflect.Type) (interface{}, error) {
 	// read protocol
 	if !d.hasprotocol {
 		var protocol int32
@@ -128,7 +122,7 @@ func (d *Decoder) DecodePtr(typ reflect.Type) (interface{}, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error reading protocol: %v", err)
 		}
-		if protocol != version {
+		if protocol != heterogeneousProtocol {
 			return nil, fmt.Errorf("invalid protocol %d", protocol)
 		}
 		d.hasprotocol = true
@@ -144,15 +138,15 @@ func (d *Decoder) DecodePtr(typ reflect.Type) (interface{}, error) {
 	}
 	d.dr.Next()
 
-	// second segment: read the footer
-	var f footer
+	// second segment: read the heterogeneousFooter
+	var f heterogeneousFooter
 	dec := gob.NewDecoder(d.dr)
 	err = dec.Decode(&f)
 	if err == io.EOF {
-		return nil, errors.New("footer was missing")
+		return nil, errors.New("heterogeneousFooter was missing")
 	}
 	if err != nil {
-		return nil, fmt.Errorf("error decoding footer: %v", err)
+		return nil, fmt.Errorf("error decoding heterogeneousFooter: %v", err)
 	}
 	d.dr.Next()
 
@@ -163,5 +157,5 @@ func (d *Decoder) DecodePtr(typ reflect.Type) (interface{}, error) {
 	}
 
 	// relocate the data
-	return relocate(membuf, &f, typ)
+	return relocate(membuf, f.Pointers, f.Main, typ)
 }

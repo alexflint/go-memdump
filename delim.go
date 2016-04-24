@@ -26,6 +26,7 @@ type delimitedReader struct {
 	r       io.Reader
 	buf     []byte
 	atdelim bool
+	hasread bool // true if any bytes have been read for the current segment
 	eof     bool
 }
 
@@ -40,7 +41,7 @@ func newDelimitedReader(r io.Reader) *delimitedReader {
 // when the delim is reached.
 func (r *delimitedReader) Read(dest []byte) (int, error) {
 	// if we are already at EOF then we are done
-	if r.eof || r.atdelim {
+	if r.atdelim {
 		return 0, io.EOF
 	}
 
@@ -70,12 +71,18 @@ func (r *delimitedReader) Read(dest []byte) (int, error) {
 		} else if err != nil {
 			return nbuf + nread, err
 		}
+		if nread > 0 {
+			r.hasread = true
+		}
 	}
 
 	if nread == 0 && nbuf == 0 {
 		if !r.eof {
 			// should be impossible
 			panic("read zero bytes from both buffer and reader")
+		}
+		if r.hasread {
+			return 0, ErrUnexpectedEOF
 		}
 		return 0, io.EOF
 	}
@@ -115,4 +122,10 @@ func (r *delimitedReader) Read(dest []byte) (int, error) {
 // segment to extract.
 func (r *delimitedReader) Next() {
 	r.atdelim = false
+	r.hasread = false
+}
+
+// EOF returns true if all segments have been consumed
+func (r *delimitedReader) EOF() bool {
+	return len(r.buf) == 0 && r.eof
 }

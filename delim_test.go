@@ -3,7 +3,6 @@ package memdump
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -78,19 +77,23 @@ func TestDelimitedReader_SimpleThenEmpty(t *testing.T) {
 
 func TestDelimitedReader_EmptyUnterminated(t *testing.T) {
 	r := newDelimitedReader(bytes.NewReader(nil))
-
 	buf := make([]byte, 100)
-
 	n, err := r.Read(buf)
-	assert.Equal(t, ErrUnexpectedEOF, err)
+	assert.Equal(t, io.EOF, err)
 	assert.Equal(t, 0, n)
 }
 
 func TestDelimitedReader_Unterminated(t *testing.T) {
 	r := newDelimitedReader(bytes.NewReader([]byte("abc")))
-	buf, err := ioutil.ReadAll(r)
+	buf := make([]byte, 100)
+
+	n, err := r.Read(buf)
+	assert.NoError(t, err)
+	assert.Equal(t, "abc", string(buf[:n]))
+
+	n, err = r.Read(buf)
 	assert.Equal(t, ErrUnexpectedEOF, err)
-	assert.Equal(t, "abc", string(buf))
+	assert.Equal(t, 0, n)
 }
 
 func TestDelimitedReader_ReadAfterEOF(t *testing.T) {

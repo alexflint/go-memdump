@@ -12,37 +12,37 @@ import (
 func testEncodeDecode(t *testing.T, src interface{}, dest interface{}) {
 	var b bytes.Buffer
 
-	enc := NewEncoder(&b)
+	enc := NewHeterogeneousEncoder(&b)
 	err := enc.Encode(src)
 	require.NoError(t, err)
 
-	dec := NewDecoder(&b)
+	dec := NewHeterogeneousDecoder(&b)
 	err = dec.Decode(dest)
 	require.NoError(t, err)
 }
 
-func TestEncodeDecodeInt(t *testing.T) {
+func TestHeterogeneous_Int(t *testing.T) {
 	var dest int
 	var src int = 3
 	testEncodeDecode(t, &src, &dest)
 	assert.EqualValues(t, src, dest)
 }
 
-func TestEncodeDecodeString(t *testing.T) {
+func TestHeterogeneous_String(t *testing.T) {
 	var dest string
 	src := "abc"
 	testEncodeDecode(t, &src, &dest)
 	assert.EqualValues(t, src, dest)
 }
 
-func TestEncodeDecodeSlice(t *testing.T) {
+func TestHeterogeneous_Slice(t *testing.T) {
 	var dest []int16
 	src := []int16{5, 4, 3}
 	testEncodeDecode(t, &src, &dest)
 	assert.EqualValues(t, src, dest)
 }
 
-func TestEncodeDecodeLarge(t *testing.T) {
+func TestHeterogeneous_Large(t *testing.T) {
 	type T struct {
 		A string
 		B int
@@ -57,7 +57,7 @@ func TestEncodeDecodeLarge(t *testing.T) {
 	assert.EqualValues(t, src, dest)
 }
 
-func TestEncodeDecodeStruct(t *testing.T) {
+func TestHeterogeneous_Struct(t *testing.T) {
 	type U struct {
 		W string
 		X *string
@@ -91,7 +91,7 @@ func TestEncodeDecodeStruct(t *testing.T) {
 	assert.EqualValues(t, src, dest)
 }
 
-func TestEncodeDecodeIncompatible(t *testing.T) {
+func TestHeterogeneous_Incompatible(t *testing.T) {
 	type U struct {
 		X int
 		Y string
@@ -106,18 +106,18 @@ func TestEncodeDecodeIncompatible(t *testing.T) {
 
 	var b bytes.Buffer
 
-	enc := NewEncoder(&b)
+	enc := NewHeterogeneousEncoder(&b)
 	err := enc.Encode(&src)
 	require.NoError(t, err)
 
-	dec := NewDecoder(&b)
+	dec := NewHeterogeneousDecoder(&b)
 	err = dec.Decode(&dest)
 	assert.Equal(t, ErrIncompatibleLayout, err)
 }
 
-func TestEncodeUnsupportedTypes(t *testing.T) {
+func TestHeterogeneousEncodeUnsupportedTypes(t *testing.T) {
 	var buf bytes.Buffer
-	enc := NewEncoder(&buf)
+	enc := NewHeterogeneousEncoder(&buf)
 	assert.Panics(t, func() {
 		enc.Encode(&map[string]int{})
 	})
