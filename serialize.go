@@ -100,7 +100,7 @@ func newMemEncoder(w io.Writer) *memEncoder {
 
 // memEncoderState contains the state that is local to a single Encode() call.
 type memEncoderState struct {
-	ptrLocs []int
+	ptrLocs []int64
 	next    uintptr
 }
 
@@ -138,7 +138,7 @@ func arrayFromSlice(sliceval reflect.Value) reflect.Value {
 
 // Encode writes the in-memory representation of the object pointed to by ptr. It
 // returns the offset of each pointer and an error.
-func (e *memEncoder) Encode(ptr interface{}) ([]int, error) {
+func (e *memEncoder) Encode(ptr interface{}) ([]int64, error) {
 	var state memEncoderState
 
 	ptrval := reflect.ValueOf(ptr)
@@ -182,7 +182,7 @@ func (e *memEncoder) Encode(ptr interface{}) ([]int, error) {
 
 			var dest uintptr
 			if !isNil(ptrval) {
-				state.ptrLocs = append(state.ptrLocs, int(cur.dest+ptr.offset))
+				state.ptrLocs = append(state.ptrLocs, int64(cur.dest+ptr.offset))
 
 				var found bool
 				dest, found = cache[readPointer(ptrval)]

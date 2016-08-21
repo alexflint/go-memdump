@@ -10,8 +10,8 @@ import (
 )
 
 type heterogeneousFooter struct {
-	Pointers   []int // Pointers contains the offset of each pointer
-	Main       int   // Main contains the offset of the primary object
+	Pointers   []int64 // Pointers contains the offset of each pointer
+	Main       int64   // Main contains the offset of the primary object
 	Descriptor descriptor
 }
 

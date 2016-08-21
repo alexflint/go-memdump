@@ -11,7 +11,7 @@ import (
 func TestLocations(t *testing.T) {
 	expected := locations{
 		Main:     2,
-		Pointers: []int{3, 4},
+		Pointers: []int64{3, 4},
 	}
 
 	var b bytes.Buffer
@@ -26,7 +26,7 @@ func TestLocations(t *testing.T) {
 }
 
 func BenchmarkLocations(b *testing.B) {
-	in := locations{Pointers: make([]int, 200000)}
+	in := locations{Pointers: make([]int64, 200000)}
 	var out locations
 
 	var buf bytes.Buffer
