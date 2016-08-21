@@ -6,7 +6,6 @@ package bench
 
 import (
 	"bytes"
-	"reflect"
 	"testing"
 
 	memdump "github.com/alexflint/go-memdump"
@@ -100,9 +99,9 @@ func BenchmarkSingleMemdump(b *testing.B) {
 		label := humanize.Bytes(uint64(len(buf)))
 		b.Run(label, func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
-				//var out treeNode
+				var out *treeNode
 				//err := memdump.Decode(bytes.NewBuffer(buf), &out)
-				_, err := memdump.DecodePtr(bytes.NewBuffer(buf), reflect.TypeOf(treeNode{}))
+				err := memdump.Decode(bytes.NewBuffer(buf), &out)
 				if err != nil {
 					b.Error(err)
 					b.FailNow()

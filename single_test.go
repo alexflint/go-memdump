@@ -28,9 +28,9 @@ func TestSingle_Struct(t *testing.T) {
 	err := Encode(&b, &src)
 	require.NoError(t, err)
 
-	var dest T
+	var dest *T
 	err = Decode(&b, &dest)
 	require.NoError(t, err)
 
-	assert.EqualValues(t, src, dest)
+	assert.EqualValues(t, src, *dest)
 }
