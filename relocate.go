@@ -41,12 +41,13 @@ func decodeLocations(r io.Reader, f *locations) error {
 		return err
 	}
 
-	// read struct fields
+	// read the main offset
 	err = binary.Read(r, binary.LittleEndian, &f.Main)
 	if err != nil {
 		return err
 	}
 
+	// read the list of pointers
 	f.Pointers = make([]int64, n)
 	err = binary.Read(r, binary.LittleEndian, f.Pointers)
 	if err != nil {
@@ -68,7 +69,7 @@ func relocate(buf []byte, ptrs []int64, main int64, t reflect.Type) (interface{}
 		*v += base
 	}
 	if main < 0 || main >= int64(len(buf)) {
-		return nil, fmt.Errorf("footer.Main was out of range: %d (buffer len=%d)", main, len(buf))
+		return nil, fmt.Errorf("main offset was out of range: %d (buffer len=%d)", main, len(buf))
 	}
 	return reflect.NewAt(t, unsafe.Pointer(&buf[main])).Interface(), nil
 }
