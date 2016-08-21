@@ -9,23 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHomogenous_Footer(t *testing.T) {
-	expected := footer{
-		Main:     2,
-		Pointers: []int{3, 4},
-	}
-
-	var b bytes.Buffer
-
-	err := encodeFooter(&b, &expected)
-	require.NoError(t, err)
-
-	var actual footer
-	err = decodeFooter(&b, &actual)
-
-	assert.Equal(t, expected, actual)
-}
-
 func TestHomogenous_Struct(t *testing.T) {
 	type T struct {
 		X int

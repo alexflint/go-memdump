@@ -98,7 +98,7 @@ func newMemEncoder(w io.Writer) *memEncoder {
 	}
 }
 
-// memEncoderState contains the state that is only kept within a single Encode() call.
+// memEncoderState contains the state that is local to a single Encode() call.
 type memEncoderState struct {
 	ptrLocs []int
 	next    uintptr
@@ -286,21 +286,4 @@ func lookupType(t reflect.Type) *typeInfo {
 	}
 
 	return info
-}
-
-// relocate adds the base address to each pointer in the buffer, then reinterprets
-// the buffer as an object of type t.
-func relocate(buf []byte, ptrs []int, main int, t reflect.Type) (interface{}, error) {
-	base := uintptr(unsafe.Pointer(&buf[0]))
-	for i, loc := range ptrs {
-		if loc < 0 || loc >= len(buf) {
-			return nil, fmt.Errorf("pointer %d was out of range: %d (buffer len=%d)", i, loc, len(buf))
-		}
-		v := (*uintptr)(unsafe.Pointer(&buf[loc]))
-		*v += base
-	}
-	if main < 0 || main >= len(buf) {
-		return nil, fmt.Errorf("footer.Main was out of range: %d (buffer len=%d)", main, len(buf))
-	}
-	return reflect.NewAt(t, unsafe.Pointer(&buf[main])).Interface(), nil
 }

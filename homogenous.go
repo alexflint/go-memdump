@@ -2,7 +2,6 @@ package memdump
 
 import (
 	"bytes"
-	"encoding/binary"
 	"encoding/gob"
 	"fmt"
 	"io"
@@ -13,66 +12,6 @@ import (
 type header struct {
 	Protocol   int32
 	Descriptor descriptor
-}
-
-// footer is binary-encoded after each data segment
-type footer struct {
-	Main     int   // Main contains the offset of the primary object
-	Pointers []int // Pointers contains the offset of each pointer
-}
-
-func encodeFooter(w io.Writer, f *footer) error {
-	err := binary.Write(w, binary.LittleEndian, int64(len(f.Pointers)))
-	if err != nil {
-		return err
-	}
-
-	err = binary.Write(w, binary.LittleEndian, int64(f.Main))
-	if err != nil {
-		return err
-	}
-
-	pointers := make([]int64, len(f.Pointers))
-	for i, ptr := range f.Pointers {
-		pointers[i] = int64(ptr)
-	}
-
-	err = binary.Write(w, binary.LittleEndian, pointers)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func decodeFooter(r io.Reader, f *footer) error {
-	// read the number of pointers
-	var n int64
-	err := binary.Read(r, binary.LittleEndian, &n)
-	if err != nil {
-		return err
-	}
-
-	// read struct fields
-	var main int64
-	err = binary.Read(r, binary.LittleEndian, &main)
-	if err != nil {
-		return err
-	}
-
-	pointers := make([]int64, n)
-	err = binary.Read(r, binary.LittleEndian, pointers)
-	if err != nil {
-		return err
-	}
-
-	f.Main = int(main)
-	f.Pointers = make([]int, n)
-	for i, ptr := range pointers {
-		f.Pointers[i] = int(ptr)
-	}
-
-	return nil
 }
 
 // Encoder writes memdumps to the provided writer
@@ -89,8 +28,8 @@ func NewEncoder(w io.Writer) *Encoder {
 }
 
 // Encode writes a memdump of the provided object to output. You must pass a
-// pointer to the object you wish to encode. To encode a pointer, pass a
-// double-pointer.
+// pointer to the object you wish to encode. (To encode a pointer, pass a
+// pointer to a pointer.)
 func (e *Encoder) Encode(obj interface{}) error {
 	t := reflect.TypeOf(obj)
 	if t.Kind() != reflect.Ptr {
@@ -129,7 +68,7 @@ func (e *Encoder) Encode(obj interface{}) error {
 	}
 
 	// second segment: write the footer
-	err = encodeFooter(e.w, &footer{Pointers: ptrs})
+	err = encodeLocations(e.w, &locations{Pointers: ptrs})
 	if err != nil {
 		return fmt.Errorf("error writing footer: %v", err)
 	}
@@ -221,8 +160,8 @@ func (d *Decoder) DecodePtr(t reflect.Type) (interface{}, error) {
 	}
 
 	// decode footer
-	var f footer
-	err = decodeFooter(bytes.NewBuffer(footerseg), &f)
+	var f locations
+	err = decodeLocations(bytes.NewBuffer(footerseg), &f)
 	if err != nil {
 		return nil, fmt.Errorf("error decoding footer: %v", err)
 	}
