@@ -24,3 +24,19 @@ func TestLocations(t *testing.T) {
 
 	assert.Equal(t, expected, actual)
 }
+
+func BenchmarkLocations(b *testing.B) {
+	in := locations{Pointers: make([]int, 200000)}
+	var out locations
+
+	var buf bytes.Buffer
+	encodeLocations(&buf, &in)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		r := bytes.NewBuffer(buf.Bytes())
+		//ioutil.ReadAll(r)
+		//_ = out
+		decodeLocations(r, &out)
+	}
+}
