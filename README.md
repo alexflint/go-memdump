@@ -5,7 +5,9 @@
 
 ## Very fast serialization for Go
 
-This package provides a fast but unsafe way to load amounts of data into Go structs. `go-memdump` can load multiple gigabytes per second, even when the data contains large numbers of small structs with many pointers and slices. However, the price you pay for decoding performance is:
+This package provides a fast way to load large amounts of data into Go structs. As shown in the [benchmarks](#benchmarks), memdump can load datasets containing millions of small structs at over 1 GB/s.
+
+However, the price you pay for decoding performance is:
 - you cannot load into structs that contain maps or interfaces
 - your data is not portable across architectures
 - encoding is not particularly fast
@@ -42,12 +44,20 @@ memdump.Decode(r, &mydata)
 
 ### Benchmarks
 
-The benchmarks were measured by encoding and decoding a tree containing 2,097,151 nodes. The times below are for decoding only.
+The benchmarks were measured by encoding and decoding a tree containing 2,097,151 nodes. See below for further details.
 
+*Encode*
 ```
                  gob    28.17 MB/s      (39.8 MB in 1.41s)
                 json    30.17 MB/s      (113.8 MB in 3.77s)
              memdump  1031.54 MB/s      (113.2 MB in 0.11s)
+```
+
+*Decode*
+```
+                 gob    37.07 MB/s      (39.8 MB in 1.07s)
+                json    77.20 MB/s      (113.8 MB in 1.47s)
+             memdump    61.25 MB/s      (113.2 MB in 1.85s)
 ```
 
 The tree nodes were as follows:

@@ -122,6 +122,7 @@ func main() {
 
 	t := generateTree(args.Depth, args.Degree)
 
+	fmt.Println("DECODE")
 	for _, codec := range []codec{gobcodec{}, jsoncodec{}, memdumpcodec{}} {
 		buf, err := codec.encode(t)
 		if err != nil {
@@ -136,6 +137,26 @@ func main() {
 				fmt.Println(err)
 				os.Exit(1)
 			}
+		}
+		duration := time.Since(begin).Seconds() / float64(args.Repeat)
+
+		bytesPerSec := float64(len(buf)) / duration
+
+		fmt.Printf("%20s %8.2f MB/s      (%.1f MB in %.2fs)\n",
+			codec.name(), bytesPerSec/1000000., float64(len(buf))/1000000., duration)
+	}
+
+	fmt.Println("ENCODE")
+	for _, codec := range []codec{gobcodec{}, jsoncodec{}, memdumpcodec{}} {
+		buf, err := codec.encode(t)
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+
+		begin := time.Now()
+		for i := 0; i < args.Repeat; i++ {
+			codec.encode(t)
 		}
 		duration := time.Since(begin).Seconds() / float64(args.Repeat)
 
