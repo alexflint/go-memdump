@@ -146,7 +146,7 @@ func (e *memEncoder) Encode(ptr interface{}) ([]int64, error) {
 
 	cache := make(map[uintptr]uintptr)
 
-	queue := []block{block{
+	queue := []block{{
 		src:  objval,
 		dest: state.alloc(objval.Type().Size()),
 		size: objval.Type().Size(),

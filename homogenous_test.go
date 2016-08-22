@@ -14,7 +14,7 @@ func TestHomogenous_Struct(t *testing.T) {
 		X int
 		Y string
 	}
-	src := []T{T{1, "s1"}, T{2, "s2"}, T{3, "s3"}}
+	src := []T{{1, "s1"}, {2, "s2"}, {3, "s3"}}
 
 	var b bytes.Buffer
 
