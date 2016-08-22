@@ -130,6 +130,39 @@ func TestDescribeStructWithTags(t *testing.T) {
 	assertCompareDescriptors(t, v{}, w{}, true)
 }
 
+func TestDescriptorsEqual_DifferentElems(t *testing.T) {
+	type u struct {
+		A []string
+	}
+	type v struct {
+		A []int
+	}
+	type w struct {
+		A []int
+	}
+
+	assertCompareDescriptors(t, u{}, v{}, false)
+	assertCompareDescriptors(t, u{}, w{}, false)
+	assertCompareDescriptors(t, v{}, w{}, true)
+}
+
+func TestDescriptorsEqual_DifferentNumFields(t *testing.T) {
+	type u struct {
+		A string
+		B string
+	}
+	type v struct {
+		A string
+	}
+	type w struct {
+		A string
+	}
+
+	assertCompareDescriptors(t, u{}, v{}, false)
+	assertCompareDescriptors(t, u{}, w{}, false)
+	assertCompareDescriptors(t, v{}, w{}, true)
+}
+
 func TestDescribe_PanicsOnMap(t *testing.T) {
 	type T struct {
 		A map[string]int
