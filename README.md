@@ -3,7 +3,7 @@
 [![Coverage Status](https://coveralls.io/repos/github/alexflint/go-memdump/badge.svg?branch=master)](https://coveralls.io/github/alexflint/go-memdump?branch=master)
 [![Report Card](https://goreportcard.com/badge/github.com/alexflint/go-memdump)](https://goreportcard.com/report/github.com/alexflint/go-memdump)
 
-## Very fast serialization for Go
+## Very fast, very unsafe serialization for Go
 
 This package provides a fast way to load large amounts of data into Go structs. As shown in the [benchmarks](#benchmarks), memdump can load datasets containing millions of small structs at over 1 GB/s.
 
