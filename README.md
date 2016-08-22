@@ -46,14 +46,14 @@ memdump.Decode(r, &mydata)
 
 The benchmarks were measured by encoding and decoding a tree containing 2,097,151 nodes. See below for further details.
 
-*Encode*
+**Encode**
 ```
                  gob    28.17 MB/s      (39.8 MB in 1.41s)
                 json    30.17 MB/s      (113.8 MB in 3.77s)
              memdump  1031.54 MB/s      (113.2 MB in 0.11s)
 ```
 
-*Decode*
+**Decode**
 ```
                  gob    37.07 MB/s      (39.8 MB in 1.07s)
                 json    77.20 MB/s      (113.8 MB in 1.47s)
