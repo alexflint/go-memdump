@@ -6,10 +6,12 @@ package bench
 
 import (
 	"bytes"
+	"encoding/gob"
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	memdump "github.com/alexflint/go-memdump"
-	humanize "github.com/dustin/go-humanize"
 )
 
 type pathComponent struct {
@@ -52,7 +54,14 @@ func generateTree(depth, degree int) *treeNode {
 	return &root
 }
 
-const minDepth = 8
+func requireNoError(b *testing.B, err error) {
+	if err != nil {
+		b.Error(err)
+		b.FailNow()
+	}
+}
+
+const minDepth = 16
 const maxDepth = 16
 const degree = 2
 
@@ -62,21 +71,18 @@ func BenchmarkHomogeneousMemdump(b *testing.B) {
 		in := generateTree(i, degree)
 		var buf bytes.Buffer
 		enc := memdump.NewEncoder(&buf)
-		enc.Encode(in)
+		err := enc.Encode(in)
+		requireNoError(b, err)
 		bufs = append(bufs, buf.Bytes())
 	}
 
-	for _, buf := range bufs {
-		label := humanize.Bytes(uint64(len(buf)))
-		b.Run(label, func(b *testing.B) {
+	for d, buf := range bufs {
+		b.Run(fmt.Sprintf("depth=%d", d), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				dec := memdump.NewDecoder(bytes.NewBuffer(buf))
 				var out treeNode
 				err := dec.Decode(&out)
-				if err != nil {
-					b.Error(err)
-					b.FailNow()
-				}
+				requireNoError(b, err)
 			}
 		})
 	}
@@ -88,24 +94,59 @@ func BenchmarkSingleMemdump(b *testing.B) {
 		in := generateTree(i, degree)
 		var buf bytes.Buffer
 		err := memdump.Encode(&buf, in)
-		if err != nil {
-			b.Error(err)
-			b.FailNow()
-		}
+		requireNoError(b, err)
 		bufs = append(bufs, buf.Bytes())
 	}
 
-	for _, buf := range bufs {
-		label := humanize.Bytes(uint64(len(buf)))
-		b.Run(label, func(b *testing.B) {
+	for d, buf := range bufs {
+		b.Run(fmt.Sprintf("depth=%d", d), func(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				var out *treeNode
-				//err := memdump.Decode(bytes.NewBuffer(buf), &out)
 				err := memdump.Decode(bytes.NewBuffer(buf), &out)
-				if err != nil {
-					b.Error(err)
-					b.FailNow()
-				}
+				requireNoError(b, err)
+			}
+		})
+	}
+}
+
+func BenchmarkGob(b *testing.B) {
+	var bufs [][]byte
+	for i := minDepth; i <= maxDepth; i++ {
+		in := generateTree(i, degree)
+		var buf bytes.Buffer
+		enc := gob.NewEncoder(&buf)
+		err := enc.Encode(in)
+		requireNoError(b, err)
+		bufs = append(bufs, buf.Bytes())
+	}
+
+	for d, buf := range bufs {
+		b.Run(fmt.Sprintf("depth=%d", d), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				dec := gob.NewDecoder(bytes.NewBuffer(buf))
+				var out treeNode
+				err := dec.Decode(&out)
+				requireNoError(b, err)
+			}
+		})
+	}
+}
+
+func BenchmarkJSON(b *testing.B) {
+	var bufs [][]byte
+	for i := minDepth; i <= maxDepth; i++ {
+		in := generateTree(i, degree)
+		buf, err := json.Marshal(in)
+		requireNoError(b, err)
+		bufs = append(bufs, buf)
+	}
+
+	for d, buf := range bufs {
+		b.Run(fmt.Sprintf("depth=%d", d), func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				var out treeNode
+				err := json.Unmarshal(buf, &out)
+				requireNoError(b, err)
 			}
 		})
 	}
