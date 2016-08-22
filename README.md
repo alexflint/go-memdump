@@ -11,7 +11,7 @@ However, the price you pay for decoding performance is:
 - you cannot load structs that contain maps or interfaces
 - data migration is not supported
 - your data is not portable across machine architectures (64 bit vs 32 bit, big-endian vs small-endian)
-- encoding performance is merely on par with `encoding/json`
+- encoding performance is merely on par with typical json or gob performance
 
 Memdump was designed for use in a caching layer, where the data was encoded and decoded by the same machine, and where decoding performance mattered more than encoding performance.
 
