@@ -21,6 +21,7 @@ func TestLocations(t *testing.T) {
 
 	var actual locations
 	err = decodeLocations(&b, &actual)
+	require.NoError(t, err)
 
 	assert.Equal(t, expected, actual)
 }
@@ -30,13 +31,13 @@ func BenchmarkLocations(b *testing.B) {
 	var out locations
 
 	var buf bytes.Buffer
-	encodeLocations(&buf, &in)
+	err := encodeLocations(&buf, &in)
+	require.NoError(b, err)
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		r := bytes.NewBuffer(buf.Bytes())
-		//ioutil.ReadAll(r)
-		//_ = out
-		decodeLocations(r, &out)
+		err = decodeLocations(r, &out)
+		require.NoError(b, err)
 	}
 }

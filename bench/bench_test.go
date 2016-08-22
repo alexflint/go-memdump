@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	memdump "github.com/alexflint/go-memdump"
+	"github.com/stretchr/testify/require"
 )
 
 type pathComponent struct {
@@ -54,13 +55,6 @@ func generateTree(depth, degree int) *treeNode {
 	return &root
 }
 
-func requireNoError(b *testing.B, err error) {
-	if err != nil {
-		b.Error(err)
-		b.FailNow()
-	}
-}
-
 const minDepth = 16
 const maxDepth = 16
 const degree = 2
@@ -72,7 +66,7 @@ func BenchmarkHomogeneousMemdump(b *testing.B) {
 		var buf bytes.Buffer
 		enc := memdump.NewEncoder(&buf)
 		err := enc.Encode(in)
-		requireNoError(b, err)
+		require.NoError(b, err)
 		bufs = append(bufs, buf.Bytes())
 	}
 
@@ -82,7 +76,7 @@ func BenchmarkHomogeneousMemdump(b *testing.B) {
 				dec := memdump.NewDecoder(bytes.NewBuffer(buf))
 				var out treeNode
 				err := dec.Decode(&out)
-				requireNoError(b, err)
+				require.NoError(b, err)
 			}
 		})
 	}
@@ -94,7 +88,7 @@ func BenchmarkSingleMemdump(b *testing.B) {
 		in := generateTree(i, degree)
 		var buf bytes.Buffer
 		err := memdump.Encode(&buf, in)
-		requireNoError(b, err)
+		require.NoError(b, err)
 		bufs = append(bufs, buf.Bytes())
 	}
 
@@ -103,7 +97,7 @@ func BenchmarkSingleMemdump(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				var out *treeNode
 				err := memdump.Decode(bytes.NewBuffer(buf), &out)
-				requireNoError(b, err)
+				require.NoError(b, err)
 			}
 		})
 	}
@@ -116,7 +110,7 @@ func BenchmarkGob(b *testing.B) {
 		var buf bytes.Buffer
 		enc := gob.NewEncoder(&buf)
 		err := enc.Encode(in)
-		requireNoError(b, err)
+		require.NoError(b, err)
 		bufs = append(bufs, buf.Bytes())
 	}
 
@@ -126,7 +120,7 @@ func BenchmarkGob(b *testing.B) {
 				dec := gob.NewDecoder(bytes.NewBuffer(buf))
 				var out treeNode
 				err := dec.Decode(&out)
-				requireNoError(b, err)
+				require.NoError(b, err)
 			}
 		})
 	}
@@ -137,7 +131,7 @@ func BenchmarkJSON(b *testing.B) {
 	for i := minDepth; i <= maxDepth; i++ {
 		in := generateTree(i, degree)
 		buf, err := json.Marshal(in)
-		requireNoError(b, err)
+		require.NoError(b, err)
 		bufs = append(bufs, buf)
 	}
 
@@ -146,7 +140,7 @@ func BenchmarkJSON(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				var out treeNode
 				err := json.Unmarshal(buf, &out)
-				requireNoError(b, err)
+				require.NoError(b, err)
 			}
 		})
 	}
