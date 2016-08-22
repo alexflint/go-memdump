@@ -1,6 +1,6 @@
 [![GoDoc](https://godoc.org/github.com/alexflint/go-memdump?status.svg)](https://godoc.org/github.com/alexflint/go-memdump)
 [![Build Status](https://travis-ci.org/alexflint/go-memdump.svg?branch=master)](https://travis-ci.org/alexflint/go-memdump)
-[![Coverage Status](https://coveralls.io/repos/alexflint/go-memdump/badge.svg?branch=master&service=github)](https://coveralls.io/github/alexflint/go-memdump?branch=master)
+[![Coverage Status](https://coveralls.io/repos/github/alexflint/go-memdump/badge.svg?branch=master)](https://coveralls.io/github/alexflint/go-memdump?branch=master)
 [![Report Card](https://goreportcard.com/badge/github.com/alexflint/go-memdump)](https://goreportcard.com/badge/github.com/alexflint/go-memdump)
 
 ## Very fast serialization for Go
