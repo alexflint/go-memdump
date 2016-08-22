@@ -156,7 +156,7 @@ func (e *memEncoder) Encode(ptr interface{}) ([]int64, error) {
 		cur := queue[0]
 		queue = queue[1:]
 
-		blockaddr := cur.src.Addr().Pointer()
+		blockaddr := cur.src.Addr()
 		blockbytes := asBytes(cur.src)
 		if len(blockbytes) != int(cur.size) {
 			panic(fmt.Sprintf("expected %v to be %d bytes but turned out to be %d bytes",
@@ -176,8 +176,7 @@ func (e *memEncoder) Encode(ptr interface{}) ([]int64, error) {
 				return nil, err
 			}
 
-			ptraddr := blockaddr + ptr.offset
-			ptrdata := unsafe.Pointer(ptraddr)
+			ptrdata := unsafe.Pointer(blockaddr.Pointer() + ptr.offset)
 			ptrval := reflect.NewAt(ptr.typ, ptrdata).Elem()
 
 			var dest uintptr

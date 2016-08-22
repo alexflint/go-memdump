@@ -78,9 +78,8 @@ func (r *DelimitedReader) Next() ([]byte, error) {
 		if n == 0 && err == io.EOF {
 			if offset == 0 {
 				return nil, io.EOF
-			} else {
-				return nil, ErrUnexpectedEOF
 			}
+			return nil, ErrUnexpectedEOF
 		} else if err != nil {
 			return nil, err
 		}

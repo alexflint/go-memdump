@@ -87,7 +87,7 @@ type Decoder struct {
 	t  reflect.Type
 }
 
-// New creates a Decoder that reads memdumps
+// NewDecoder creates a Decoder that reads memdumps
 func NewDecoder(r io.Reader) *Decoder {
 	return &Decoder{
 		dr: NewDelimitedReader(r),
