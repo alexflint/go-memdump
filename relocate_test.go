@@ -2,6 +2,7 @@ package memdump
 
 import (
 	"bytes"
+	"reflect"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,24 @@ func TestLocations(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, expected, actual)
+}
+
+func TestRelocate_EmptyBuffer(t *testing.T) {
+	var buf []byte
+	_, err := relocate(buf, nil, 0, reflect.TypeOf(0))
+	assert.Error(t, err)
+}
+
+func TestRelocate_MainOutOfBounds(t *testing.T) {
+	buf := []byte{1, 2, 3}
+	_, err := relocate(buf, nil, 100, reflect.TypeOf(0))
+	assert.Error(t, err)
+}
+
+func TestRelocate_PointerOutOfBounds(t *testing.T) {
+	buf := []byte{1, 2, 3}
+	_, err := relocate(buf, []int64{100}, 0, reflect.TypeOf(0))
+	assert.Error(t, err)
 }
 
 func BenchmarkLocations(b *testing.B) {

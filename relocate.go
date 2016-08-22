@@ -60,6 +60,9 @@ func decodeLocations(r io.Reader, f *locations) error {
 // relocate adds the base address to each pointer in the buffer, then reinterprets
 // the buffer as an object of type t.
 func relocate(buf []byte, ptrs []int64, main int64, t reflect.Type) (interface{}, error) {
+	if len(buf) == 0 {
+		return nil, fmt.Errorf("cannot relocate an empty buffer")
+	}
 	base := uintptr(unsafe.Pointer(&buf[0]))
 	for i, loc := range ptrs {
 		if loc < 0 || loc >= int64(len(buf)) {
