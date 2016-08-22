@@ -2,7 +2,7 @@
 // serialization packages. This code is in a separate package to avoid
 // introducing unnecessary dependencies to memdump.
 
-package bench
+package main
 
 import (
 	"bytes"
@@ -15,49 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type pathComponent struct {
-	S string
-	R int
-}
-
-type treeNode struct {
-	Label    string
-	Weight   int
-	Path     []pathComponent
-	Children []*treeNode
-}
-
-func generateTree(depth, degree int) *treeNode {
-	tpl := treeNode{
-		Label:  "label",
-		Weight: 123,
-		Path: []pathComponent{
-			{"abc", 4},
-			{"def", 5},
-			{"ghi", 6},
-		},
-	}
-
-	root := tpl
-	cur := []*treeNode{&root}
-	var next []*treeNode
-	for i := 1; i < depth; i++ {
-		for _, n := range cur {
-			for j := 0; j < degree; j++ {
-				ch := tpl
-				n.Children = append(n.Children, &ch)
-				next = append(next, &ch)
-			}
-		}
-		//log.Printf("at i=%d, len=%d", i, len(next))
-		cur, next = next, cur[:0]
-	}
-	return &root
-}
-
-const minDepth = 16
-const maxDepth = 16
-const degree = 2
+const (
+	minDepth = 16
+	maxDepth = 16
+	degree   = 2
+)
 
 func BenchmarkHomogeneousMemdump(b *testing.B) {
 	var bufs [][]byte

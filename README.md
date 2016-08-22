@@ -42,4 +42,27 @@ memdump.Decode(r, &mydata)
 
 ### Benchmarks
 
-Coming soon
+The benchmarks were measured by encoding and decoding a tree containing 2,097,151 nodes. The times below are for decoding only.
+
+```
+                 gob    28.17 MB/s      (39.8 MB in 1.41s)
+                json    30.17 MB/s      (113.8 MB in 3.77s)
+             memdump  1031.54 MB/s      (113.2 MB in 0.11s)
+```
+
+The tree nodes were as follows:
+```go
+type treeNode struct {
+	Label    string
+	Weight   int
+	Path     []pathComponent
+	Children []*treeNode
+}
+```
+
+To reproduce these results:
+```shell
+$ go get -u github.com/alexflint/go-memdump
+$ go build github.com/alexflint/go-memdump/bench -o /tmp/bench
+$ /tmp/bench
+```
