@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSingle_Struct(t *testing.T) {
+func TestSingle(t *testing.T) {
 	type T struct {
 		X  int
 		Y  string
@@ -33,4 +33,17 @@ func TestSingle_Struct(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.EqualValues(t, src, *dest)
+}
+
+func TestEncode_PanicsForNonPointer(t *testing.T) {
+	var x struct{}
+	var b bytes.Buffer
+	assert.Panics(t, func() { Encode(&b, x) })
+}
+
+func TestDecode_PanicsForNonPointerToPointer(t *testing.T) {
+	var x struct{}
+	var b bytes.Buffer
+	assert.Panics(t, func() { Decode(&b, x) })
+	assert.Panics(t, func() { Decode(&b, &x) })
 }
