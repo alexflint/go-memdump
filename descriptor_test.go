@@ -4,17 +4,13 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 )
 
 func assertCompareDescriptors(t *testing.T, a interface{}, b interface{}, expected bool) {
 	da := describe(reflect.TypeOf(a))
 	db := describe(reflect.TypeOf(b))
-	if !assert.Equal(t, expected, descriptorsEqual(da, db)) {
-		pretty.Println(da)
-		pretty.Println(db)
-	}
+	assert.Equal(t, expected, descriptorsEqual(da, db))
 }
 
 func TestDescribeScalar(t *testing.T) {
