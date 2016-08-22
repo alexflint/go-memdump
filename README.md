@@ -15,34 +15,6 @@ However, the price you pay for decoding performance is:
 
 Memdump was designed for use in a caching layer, where the data was encoded and decoded by the same machine, and where decoding performance mattered more than encoding performance.
 
-## Quick start
-
-```shell
-go get github.com/alexflint/go-memdump
-```
-
-Write data to a file:
-
-```go
-type data struct {
-	Foo string
-	Bar int
-}
-mydata := data{Foo: "abc", Bar: 123}
-w, _ := os.Create("/tmp/data.memdump", 0777)
-// note that you must pass a pointer when encoding
-memdump.Encode(w, &args)
-```
-
-Load data from a file:
-
-```go
-var mydata *data
-r, _ := os.Open("/tmp/data.memdump")
-// note that you muss pass a pointer to a pointer when decoding
-memdump.Decode(r, &mydata)
-```
-
 ### Benchmarks
 
 The benchmarks were measured by encoding and decoding a tree containing 2,097,151 nodes. See below for further details.
@@ -76,4 +48,32 @@ To reproduce these results:
 $ go get -u github.com/alexflint/go-memdump
 $ go build github.com/alexflint/go-memdump/bench -o /tmp/bench
 $ /tmp/bench
+```
+
+## Quick start
+
+```shell
+go get github.com/alexflint/go-memdump
+```
+
+Write data to a file:
+
+```go
+type data struct {
+	Foo string
+	Bar int
+}
+mydata := data{Foo: "abc", Bar: 123}
+w, _ := os.Create("/tmp/data.memdump", 0777)
+// note that you must pass a pointer when encoding
+memdump.Encode(w, &args)
+```
+
+Load data from a file:
+
+```go
+var mydata *data
+r, _ := os.Open("/tmp/data.memdump")
+// note that you muss pass a pointer to a pointer when decoding
+memdump.Decode(r, &mydata)
 ```
