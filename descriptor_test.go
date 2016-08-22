@@ -129,3 +129,12 @@ func TestDescribeStructWithTags(t *testing.T) {
 	assertCompareDescriptors(t, u{}, w{}, false)
 	assertCompareDescriptors(t, v{}, w{}, true)
 }
+
+func TestDescribe_PanicsOnMap(t *testing.T) {
+	type T struct {
+		A map[string]int
+	}
+	assert.Panics(t, func() {
+		describe(reflect.TypeOf(T{}))
+	})
+}
