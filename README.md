@@ -26,16 +26,18 @@ type data struct {
 	Bar int
 }
 mydata := data{Foo: "abc", Bar: 123}
-f, _ := os.Create("/tmp/data.memdump")
-memdump.Encode(f, &args)
+w, _ := os.Create("/tmp/data.memdump", 0777)
+// note that you must pass a pointer when encoding
+memdump.Encode(w, &args)
 ```
 
 Load data from a file:
 
 ```go
-var mydata data
-f, _ := os.Open("/tmp/data.memdump")
-memdump.Decode(f, &mydata)
+var mydata *data
+r, _ := os.Open("/tmp/data.memdump")
+// note that you muss pass a pointer to a pointer when decoding
+memdump.Decode(r, &mydata)
 ```
 
 ### Benchmarks
