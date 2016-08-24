@@ -66,7 +66,7 @@ type data struct {
 mydata := data{Foo: "abc", Bar: 123}
 w, _ := os.Create("/tmp/data.memdump", 0777)
 // note that you must pass a pointer when encoding
-memdump.Encode(w, &args)
+memdump.Encode(w, &mydata)
 ```
 
 Load data from a file:
