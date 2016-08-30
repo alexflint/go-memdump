@@ -46,8 +46,8 @@ type treeNode struct {
 To reproduce these results:
 ```shell
 $ go get -u github.com/alexflint/go-memdump
-$ go build github.com/alexflint/go-memdump/bench -o /tmp/bench
-$ /tmp/bench
+$ go build github.com/alexflint/go-memdump/bench
+$ ./bench
 ```
 
 ## Quick start
@@ -63,6 +63,7 @@ type data struct {
 	Foo string
 	Bar int
 }
+
 mydata := data{Foo: "abc", Bar: 123}
 
 w, err := os.Create("/tmp/data.memdump")
