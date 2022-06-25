@@ -33,7 +33,4 @@ jobs:
       run: go build -v .
     
     - name: Test
-      run: go test -v -coverprofile=profile.cov .
-
-    - name: Send coverage
-      run: bash <(curl -s https://codecov.io/bash) -f profile.cov
+      run: go test -v .
