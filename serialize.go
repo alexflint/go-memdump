@@ -24,7 +24,6 @@ var (
 type block struct {
 	src  reflect.Value
 	dest uintptr
-	size uintptr
 }
 
 // pointer represents the location of a pointer in a type
@@ -104,11 +103,15 @@ type memEncoderState struct {
 	next    uintptr
 }
 
-// alloc makes room for an object of the specified size, and returns the
-// base offset for that object.
-func (e *memEncoderState) alloc(size uintptr) uintptr {
+// alloc makes room for N objects of the specified type, and returns the
+// base offset for that object. It deals correctly with alignment.
+func (e *memEncoderState) alloc(t reflect.Type, n int) uintptr {
+	align := uintptr(t.Align())
+	if e.next%align != 0 {
+		e.next += align - (e.next % align)
+	}
 	cur := e.next
-	e.next += size
+	e.next += t.Size() * uintptr(n)
 	return cur
 }
 
@@ -143,13 +146,10 @@ func (e *memEncoder) Encode(ptr interface{}) ([]int64, error) {
 
 	ptrval := reflect.ValueOf(ptr)
 	objval := ptrval.Elem()
-
 	cache := make(map[uintptr]uintptr)
-
 	queue := []block{{
 		src:  objval,
-		dest: state.alloc(objval.Type().Size()),
-		size: objval.Type().Size(),
+		dest: state.alloc(objval.Type(), 1),
 	}}
 
 	for len(queue) > 0 {
@@ -158,17 +158,27 @@ func (e *memEncoder) Encode(ptr interface{}) ([]int64, error) {
 
 		blockaddr := cur.src.Addr()
 		blockbytes := asBytes(cur.src)
-		if len(blockbytes) != int(cur.size) {
-			panic(fmt.Sprintf("expected %v to be %d bytes but turned out to be %d bytes",
-				cur.src.Type(), cur.size, len(blockbytes)))
-		}
 
-		if cur.dest != uintptr(e.w.offset) {
+		fmt.Printf("at %d (%v)\n", e.w.offset, cur.src.Type())
+
+		// check the position of the writer
+		if cur.dest < uintptr(e.w.offset) {
 			panic(fmt.Sprintf("block.dest=%d but writer is at %d", cur.dest, e.w.offset))
 		}
 
+		// for byte-alignment purposes we may need to fill some bytes
+		if fill := cur.dest - uintptr(e.w.offset); fill > 0 {
+			fmt.Println("filling", fill)
+			_, err := e.w.Write(make([]byte, fill))
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		// look up info about this type
 		info := lookupType(cur.src.Type())
 
+		// add each referenced object to the queue
 		var blockpos uintptr
 		for _, ptr := range info.pointers {
 			_, err := e.w.Write(blockbytes[blockpos:ptr.offset])
@@ -188,30 +198,24 @@ func (e *memEncoder) Encode(ptr interface{}) ([]int64, error) {
 				if !found {
 					switch ptr.typ.Kind() {
 					case reflect.Ptr:
-						size := ptr.typ.Elem().Size()
-						dest = state.alloc(size)
+						dest = state.alloc(ptr.typ.Elem(), 1)
 						queue = append(queue, block{
 							src:  ptrval.Elem(),
 							dest: dest,
-							size: size,
 						})
 					case reflect.Slice:
-						size := uintptr(ptrval.Len()) * ptr.typ.Elem().Size()
-						dest = state.alloc(size)
+						dest = state.alloc(ptr.typ.Elem(), ptrval.Len())
 						arr := arrayFromSlice(ptrval)
 						queue = append(queue, block{
 							src:  arr,
 							dest: dest,
-							size: size,
 						})
 					case reflect.String:
-						size := uintptr(ptrval.Len())
-						dest = state.alloc(size)
+						dest = state.alloc(byteType, ptrval.Len())
 						arr := arrayFromString(ptrval)
 						queue = append(queue, block{
 							src:  arr,
 							dest: dest,
-							size: size,
 						})
 					}
 					cache[readPointer(ptrval)] = dest
@@ -224,7 +228,11 @@ func (e *memEncoder) Encode(ptr interface{}) ([]int64, error) {
 			}
 			blockpos = ptr.offset + uintptrSize
 		}
-		e.w.Write(blockbytes[blockpos:])
+
+		_, err := e.w.Write(blockbytes[blockpos:])
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return state.ptrLocs, nil
