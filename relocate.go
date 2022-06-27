@@ -63,6 +63,16 @@ func relocate(buf []byte, ptrs []int64, main int64, t reflect.Type) (interface{}
 	if len(buf) == 0 {
 		return nil, fmt.Errorf("cannot relocate an empty buffer")
 	}
+
+	// If the buffer is not aligned then we have to move the
+	// whole thing. We can assume that a freshly allocated
+	// buffer from make() is 8-byte aligned.
+	if uintptr(unsafe.Pointer(&buf[0]))%uintptr(t.Align()) != 0 {
+		buf2 := make([]byte, len(buf))
+		copy(buf2, buf)
+		buf = buf2
+	}
+
 	base := uintptr(unsafe.Pointer(&buf[0]))
 	for i, loc := range ptrs {
 		if loc < 0 || loc >= int64(len(buf)) {
