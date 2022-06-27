@@ -20,7 +20,8 @@ type Encoder struct {
 	t reflect.Type
 }
 
-// NewEncoder creates an Encoder that writes memdumps to the provided writer
+// NewEncoder creates an Encoder that writes memdumps to the provided writer.
+// Each object passed to Encode must be of the same type.
 func NewEncoder(w io.Writer) *Encoder {
 	return &Encoder{
 		w: w,
@@ -52,6 +53,9 @@ func (e *Encoder) Encode(obj interface{}) error {
 
 		e.t = t
 		_, err = e.w.Write(delim)
+		if err != nil {
+			return fmt.Errorf("error writing delimeter: %v", err)
+		}
 	}
 
 	// first segment: write the object data

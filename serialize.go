@@ -159,8 +159,6 @@ func (e *memEncoder) Encode(ptr interface{}) ([]int64, error) {
 		blockaddr := cur.src.Addr()
 		blockbytes := asBytes(cur.src)
 
-		fmt.Printf("at %d (%v)\n", e.w.offset, cur.src.Type())
-
 		// check the position of the writer
 		if cur.dest < uintptr(e.w.offset) {
 			panic(fmt.Sprintf("block.dest=%d but writer is at %d", cur.dest, e.w.offset))
@@ -168,7 +166,6 @@ func (e *memEncoder) Encode(ptr interface{}) ([]int64, error) {
 
 		// for byte-alignment purposes we may need to fill some bytes
 		if fill := cur.dest - uintptr(e.w.offset); fill > 0 {
-			fmt.Println("filling", fill)
 			_, err := e.w.Write(make([]byte, fill))
 			if err != nil {
 				return nil, err
